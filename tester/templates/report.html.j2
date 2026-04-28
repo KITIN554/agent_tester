@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+{% macro render_axis(rows) -%}
+<table class="axis-table">
+  <thead>
+    <tr><th>Метрика</th><th>Значение</th><th>Порог</th><th>Статус</th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr class="status-{{ row.status }}">
+      <td><code>{{ row.name }}</code></td>
+      <td>{{ row.value | fmt_metric }}</td>
+      <td>{{ row.threshold | fmt_metric if row.threshold is not none else "—" }}</td>
+      <td>
+        {% if row.status == "ok" %}OK
+        {% elif row.status == "fail" %}FAIL
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{%- endmacro %}
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Отчёт прогона: {{ report.run_id }}</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="run-header">
+  <h1>Отчёт по прогону</h1>
+  <p>basket: <code>{{ report.basket }}</code></p>
+  <p>run_id: <code>{{ report.run_id }}</code></p>
+  {% if manifest.git_commit %}
+  <p>git: <code>{{ manifest.git_commit }}</code> ({{ manifest.git_branch or "—" }})</p>
+  {% endif %}
+  <p>
+    started: {{ report.started_at | fmt_dt }}
+    {% if report.finished_at %} — finished: {{ report.finished_at | fmt_dt }}{% endif %}
+  </p>
+  <p>
+    Сценариев: <strong>{{ report.total_scenarios }}</strong>,
+    прошло: <strong>{{ report.passed_count }}</strong>,
+    провалов: <strong>{{ report.failed_count }}</strong>
+  </p>
+</header>
+
+<section class="gate-section">
+  <h2>Gate-решение</h2>
+  <span class="gate-badge {{ gate_class }}">{{ gate_label }}</span>
+  {% if report.gate_reasons %}
+  <ul class="gate-reasons">
+    {% for reason in report.gate_reasons %}
+    <li>{{ reason }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>Все условия выполнены.</p>
+  {% endif %}
+</section>
+
+<section class="aggregates-section">
+  <h2>Сводные показатели</h2>
+  <table class="aggregates-table">
+    <thead>
+      <tr>
+        <th>Метрика</th>
+        <th>Значение</th>
+        {% if delta %}<th>Δ vs baseline</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in aggregate_rows %}
+      <tr>
+        <td><strong>{{ row.key }}</strong></td>
+        <td>{{ row.value | fmt_metric }}</td>
+        {% if delta %}
+        <td class="
+          {%- if row.delta is none %}delta-zero
+          {%- elif row.delta > 0 %}delta-positive
+          {%- elif row.delta < 0 %}delta-negative
+          {%- else %}delta-zero{% endif -%}
+        ">{{ row.delta | fmt_delta }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if not delta %}
+  <p class="muted">Эталонный прогон отсутствует — дельты не показываются.</p>
+  {% endif %}
+</section>
+
+<section class="axes-section">
+  <h2>Метрики по осям</h2>
+
+  <h3>Качество результата</h3>
+  {{ render_axis(axes.result_quality) }}
+
+  <h3>Качество процесса</h3>
+  {{ render_axis(axes.process_quality) }}
+
+  <h3>Безопасность</h3>
+  {{ render_axis(axes.safety) }}
+
+  <h3>Стоимость и время</h3>
+  {{ render_axis(axes.cost_time) }}
+</section>
+
+<section class="failures-section">
+  <h2>Провалы и регрессии</h2>
+  {% if failed_outcomes %}
+  {% for outcome in failed_outcomes %}
+  <article class="outcome-fail">
+    <h3>{{ outcome.scenario.id }}
+      <span class="muted">[{{ outcome.scenario.category.value }}]</span>
+    </h3>
+    <p><strong>Описание:</strong> {{ outcome.scenario.description }}</p>
+    {% if outcome.scenario.input.user_message %}
+    <p><strong>Запрос:</strong> {{ outcome.scenario.input.user_message }}</p>
+    {% endif %}
+    <p><strong>Ответ:</strong> <code>{{ outcome.trace.final_answer or "(пусто)" }}</code></p>
+    {% if outcome.trace.error %}
+    <p><strong>Ошибка:</strong> {{ outcome.trace.error }}</p>
+    {% endif %}
+    {% if outcome.rubric_evaluations %}
+    <details open>
+      <summary>Вердикты рубрик</summary>
+      <ul>
+        {% for ev in outcome.rubric_evaluations %}
+        <li>
+          <strong>{{ ev.rubric }}</strong>: {{ ev.verdict.value }}
+          {% if ev.score is not none %}(score={{ ev.score }}){% endif %}
+          — {{ ev.rationale }}
+        </li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+    <p class="muted">trace: <a href="traces/{{ outcome.scenario.id }}.json">traces/{{ outcome.scenario.id }}.json</a></p>
+  </article>
+  {% endfor %}
+  {% else %}
+  <p>Провалов нет.</p>
+  {% endif %}
+</section>
+
+<section class="passed-section">
+  <h2>Успешные сценарии</h2>
+  {% if passed_outcomes %}
+  {% for outcome in passed_outcomes %}
+  <details class="outcome-pass">
+    <summary>{{ outcome.scenario.id }} — pass
+      <span class="muted">[{{ outcome.scenario.category.value }}]</span>
+    </summary>
+    <p>{{ outcome.scenario.description }}</p>
+    <p><strong>Ответ:</strong> <code>{{ outcome.trace.final_answer or "(пусто)" }}</code></p>
+    <p class="muted">trace: <a href="traces/{{ outcome.scenario.id }}.json">traces/{{ outcome.scenario.id }}.json</a></p>
+  </details>
+  {% endfor %}
+  {% else %}
+  <p>Нет успешных сценариев.</p>
+  {% endif %}
+</section>
+
+<footer class="run-footer">
+  <p class="muted">
+    executor v{{ report.executor_version }} · judge v{{ report.judge_version }}
+    {% if report.model_agent %} · agent: <code>{{ report.model_agent }}</code>{% endif %}
+    {% if report.model_judge %} · judge: <code>{{ report.model_judge }}</code>{% endif %}
+  </p>
+</footer>
+
+</body>
+</html>
