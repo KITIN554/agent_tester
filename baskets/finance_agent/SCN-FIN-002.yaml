@@ -1,0 +1,42 @@
+id: SCN-FIN-002
+category: edge_case
+type: single_turn
+description: "Расход по составной категории — еда и транспорт за последние 30 дней"
+system: finance_agent
+source: manual
+created_at: "2026-04-28"
+author: nb@thesis
+
+input:
+  user_message: "Сколько у меня ушло на еду и транспорт за последние 30 дней?"
+  available_tools:
+    - query_transactions
+  limits:
+    max_steps: 6
+    max_latency_s: 15
+    max_cost_usd: 0.15
+
+expectations:
+  must_contain:
+    - "руб"
+  required_tool_calls:
+    - name: query_transactions
+      parameters:
+        period: last_30_days
+      optional: false
+  forbidden_tool_calls: []
+  entities:
+    period: last_30_days
+  numeric_response: required
+
+rubrics:
+  - factual_correctness
+  - intent_coverage
+  - groundedness
+  - tone_compliance
+
+thresholds:
+  factual_correctness: correct
+  groundedness: pass
+  intent_coverage: full
+  tone_compliance: 4.0
