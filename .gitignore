@@ -31,6 +31,9 @@ reports/*.html
 # Streamlit cache
 .streamlit/
 
+# Claude local task scheduler
+.claude/scheduled_tasks.lock
+
 # OS
 .DS_Store
 Thumbs.db
