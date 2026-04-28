@@ -1,14 +1,14 @@
-id: SCN-FIN-002
+id: SCN-FIN-004
 category: functional
 type: single_turn
-description: "Разбивка расходов по категориям за прошлый месяц"
+description: "Расходы на еду за конкретный месяц (март 2026)"
 system: finance_agent
 source: manual
 created_at: "2026-04-28"
 author: nb@thesis
 
 input:
-  user_message: "Покажи разбивку моих трат по категориям за прошлый месяц"
+  user_message: "Сколько я потратил на еду в марте 2026 года?"
   available_tools:
     - query_transactions
   limits:
@@ -22,13 +22,15 @@ expectations:
   required_tool_calls:
     - name: query_transactions
       parameters:
-        period: previous_month
-        aggregation: by_category
+        period: "month:2026-03"
+        category: food
+        aggregation: sum
       optional: false
   forbidden_tool_calls: []
   entities:
-    period: previous_month
-    aggregation: by_category
+    period: "month:2026-03"
+    category: food
+    aggregation: sum
   numeric_response: required
 
 rubrics:

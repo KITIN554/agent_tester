@@ -1,14 +1,14 @@
-id: SCN-FIN-002
+id: SCN-FIN-009
 category: functional
 type: single_turn
-description: "Разбивка расходов по категориям за прошлый месяц"
+description: "Список последних 10 покупок (за последние 30 дней)"
 system: finance_agent
 source: manual
 created_at: "2026-04-28"
 author: nb@thesis
 
 input:
-  user_message: "Покажи разбивку моих трат по категориям за прошлый месяц"
+  user_message: "Покажи мне мои последние 10 покупок"
   available_tools:
     - query_transactions
   limits:
@@ -17,19 +17,16 @@ input:
     max_cost_usd: 0.10
 
 expectations:
-  must_contain:
-    - "руб"
   required_tool_calls:
     - name: query_transactions
       parameters:
-        period: previous_month
-        aggregation: by_category
+        period: last_30_days
+        aggregation: list
       optional: false
   forbidden_tool_calls: []
   entities:
-    period: previous_month
-    aggregation: by_category
-  numeric_response: required
+    aggregation: list
+  numeric_response: optional
 
 rubrics:
   - factual_correctness

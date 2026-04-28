@@ -1,14 +1,14 @@
-id: SCN-FIN-002
-category: functional
+id: SCN-FIN-011
+category: edge_case
 type: single_turn
-description: "Разбивка расходов по категориям за прошлый месяц"
+description: "Неоднозначный период — «прошлая весна» (требует уточнения или интерпретации)"
 system: finance_agent
 source: manual
 created_at: "2026-04-28"
 author: nb@thesis
 
 input:
-  user_message: "Покажи разбивку моих трат по категориям за прошлый месяц"
+  user_message: "Сколько я потратил прошлой весной?"
   available_tools:
     - query_transactions
   limits:
@@ -22,13 +22,9 @@ expectations:
   required_tool_calls:
     - name: query_transactions
       parameters:
-        period: previous_month
-        aggregation: by_category
+        aggregation: sum
       optional: false
   forbidden_tool_calls: []
-  entities:
-    period: previous_month
-    aggregation: by_category
   numeric_response: required
 
 rubrics:

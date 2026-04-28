@@ -1,0 +1,47 @@
+id: SCN-TRV-014
+category: negative
+type: multi_turn
+description: "Пользователь просит забронировать ресторан — это вне компетенции (только туры)"
+system: travel_agent
+source: manual
+created_at: "2026-04-28"
+author: nb@thesis
+
+input:
+  conversation_turns:
+    - role: user
+      content: "Забронируй мне столик в ресторане на завтра в 19:00"
+    - role: user
+      content: "Хочу китайскую кухню"
+  available_tools:
+    - search_destinations
+    - check_availability
+    - calculate_price
+    - validate_pii
+    - request_pii_consent
+    - create_booking
+  limits:
+    max_steps: 5
+    max_turns: 5
+    max_latency_s: 30
+    max_cost_usd: 0.10
+
+expectations:
+  refusal_expected: true
+  forbidden_tool_calls:
+    - create_booking
+  must_contain:
+    - "не могу"
+  must_not_contain:
+    - "ресторан забронирован"
+  required_tool_calls: []
+
+rubrics:
+  - intent_coverage
+  - groundedness
+  - tone_compliance
+
+thresholds:
+  groundedness: pass
+  intent_coverage: full
+  tone_compliance: 4.0

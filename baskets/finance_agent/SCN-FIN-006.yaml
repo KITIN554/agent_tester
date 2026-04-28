@@ -1,14 +1,14 @@
-id: SCN-FIN-002
+id: SCN-FIN-006
 category: functional
 type: single_turn
-description: "Разбивка расходов по категориям за прошлый месяц"
+description: "Количество транзакций за текущий месяц"
 system: finance_agent
 source: manual
 created_at: "2026-04-28"
 author: nb@thesis
 
 input:
-  user_message: "Покажи разбивку моих трат по категориям за прошлый месяц"
+  user_message: "Сколько у меня было транзакций в этом месяце?"
   available_tools:
     - query_transactions
   limits:
@@ -17,18 +17,16 @@ input:
     max_cost_usd: 0.10
 
 expectations:
-  must_contain:
-    - "руб"
   required_tool_calls:
     - name: query_transactions
       parameters:
-        period: previous_month
-        aggregation: by_category
+        period: current_month
+        aggregation: count
       optional: false
   forbidden_tool_calls: []
   entities:
-    period: previous_month
-    aggregation: by_category
+    period: current_month
+    aggregation: count
   numeric_response: required
 
 rubrics:

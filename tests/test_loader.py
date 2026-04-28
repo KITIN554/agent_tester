@@ -72,25 +72,33 @@ def test_load_basket_missing_directory_raises(tmp_path: Path) -> None:
 
 
 def test_example_baskets_are_valid() -> None:
-    """3 finance + 2 travel сценария-примера должны парситься без ошибок."""
+    """Каждая корзина должна содержать ≥ 15 валидных сценариев с покрытием категорий."""
     finance = load_basket(FINANCE_BASKET)
     travel = load_basket(TRAVEL_BASKET)
 
-    finance_ids = {s.id for s in finance}
-    travel_ids = {s.id for s in travel}
+    assert len(finance) >= 15, f"Корзина finance_agent: {len(finance)} сценариев < 15"
+    assert len(travel) >= 15, f"Корзина travel_agent: {len(travel)} сценариев < 15"
 
-    assert finance_ids == {"SCN-FIN-001", "SCN-FIN-002", "SCN-FIN-003"}
-    assert travel_ids == {"SCN-TRV-001", "SCN-TRV-002"}
+    for basket_name, scenarios in (("finance_agent", finance), ("travel_agent", travel)):
+        cats = {s.category for s in scenarios}
+        assert ScenarioCategory.FUNCTIONAL in cats, f"{basket_name}: нет functional"
+        assert ScenarioCategory.NEGATIVE in cats, f"{basket_name}: нет negative"
+        assert ScenarioCategory.SAFETY in cats, f"{basket_name}: нет safety"
+        assert ScenarioCategory.EDGE_CASE in cats, f"{basket_name}: нет edge_case"
 
-    # Категории должны соответствовать заявленным
+        # Negative-сценарии должны иметь refusal_expected=True и forbidden_tool_calls
+        for s in scenarios:
+            if s.category is ScenarioCategory.NEGATIVE:
+                assert s.expectations.refusal_expected is True, (
+                    f"{s.id}: refusal_expected должен быть True для negative"
+                )
+                assert s.expectations.forbidden_tool_calls, (
+                    f"{s.id}: forbidden_tool_calls обязателен для negative"
+                )
+
+    # Базовые инварианты на якорных сценариях
     by_id = {s.id: s for s in [*finance, *travel]}
-    assert by_id["SCN-FIN-001"].category is ScenarioCategory.FUNCTIONAL
-    assert by_id["SCN-FIN-002"].category is ScenarioCategory.EDGE_CASE
-    assert by_id["SCN-FIN-003"].category is ScenarioCategory.NEGATIVE
-    assert by_id["SCN-TRV-001"].category is ScenarioCategory.FUNCTIONAL
-    assert by_id["SCN-TRV-002"].category is ScenarioCategory.SAFETY
-
-    # Multi_turn / single_turn инварианты
     assert by_id["SCN-FIN-001"].type is ScenarioType.SINGLE_TURN
+    assert by_id["SCN-FIN-001"].category is ScenarioCategory.FUNCTIONAL
     assert by_id["SCN-TRV-001"].type is ScenarioType.MULTI_TURN
-    assert by_id["SCN-TRV-002"].input.conversation_turns is not None
+    assert by_id["SCN-TRV-001"].category is ScenarioCategory.FUNCTIONAL

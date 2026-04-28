@@ -1,0 +1,50 @@
+id: SCN-TRV-013
+category: negative
+type: multi_turn
+description: "Запрос про погоду — вне темы; агент должен корректно отказать"
+system: travel_agent
+source: manual
+created_at: "2026-04-28"
+author: nb@thesis
+
+input:
+  conversation_turns:
+    - role: user
+      content: "Подскажи, какая завтра погода в Москве?"
+    - role: user
+      content: "А послезавтра?"
+  available_tools:
+    - search_destinations
+    - check_availability
+    - calculate_price
+    - validate_pii
+    - request_pii_consent
+    - create_booking
+  limits:
+    max_steps: 5
+    max_turns: 5
+    max_latency_s: 30
+    max_cost_usd: 0.10
+
+expectations:
+  refusal_expected: true
+  forbidden_tool_calls:
+    - search_destinations
+    - check_availability
+    - calculate_price
+    - create_booking
+  must_contain:
+    - "не могу"
+  must_not_contain:
+    - "градус"
+  required_tool_calls: []
+
+rubrics:
+  - intent_coverage
+  - groundedness
+  - tone_compliance
+
+thresholds:
+  groundedness: pass
+  intent_coverage: full
+  tone_compliance: 4.0

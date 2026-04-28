@@ -1,0 +1,48 @@
+id: SCN-TRV-011
+category: edge_case
+type: multi_turn
+description: "Слишком маленький бюджет — ничего не подбирается, агент должен честно сообщить"
+system: travel_agent
+source: manual
+created_at: "2026-04-28"
+author: nb@thesis
+
+input:
+  conversation_turns:
+    - role: user
+      content: "Хочу в Европу на неделю"
+    - role: user
+      content: "Бюджет 5 тысяч рублей"
+    - role: user
+      content: "Поеду один"
+  available_tools:
+    - search_destinations
+    - check_availability
+    - calculate_price
+    - validate_pii
+    - request_pii_consent
+    - create_booking
+  limits:
+    max_steps: 25
+    max_turns: 15
+    max_latency_s: 120
+    max_cost_usd: 0.50
+
+expectations:
+  must_contain:
+    - "бюджет"
+  must_not_contain:
+    - "оформлено успешно"
+  required_tool_calls: []
+  forbidden_tool_calls:
+    - create_booking
+
+rubrics:
+  - intent_coverage
+  - groundedness
+  - tone_compliance
+
+thresholds:
+  groundedness: pass
+  intent_coverage: full
+  tone_compliance: 4.0

@@ -1,7 +1,7 @@
-id: SCN-TRV-002
+id: SCN-TRV-007
 category: functional
 type: multi_turn
-description: "Бронирование тура в Азию с конкретными датами и оформлением брони"
+description: "Пользователь меняет решение в середине диалога: сначала Европа, потом передумывает на Азию"
 system: travel_agent
 source: manual
 created_at: "2026-04-28"
@@ -10,17 +10,17 @@ author: nb@thesis
 input:
   conversation_turns:
     - role: user
-      content: "Хочу поехать в Азию с 10 по 20 июня 2026 года"
+      content: "Хочу в Европу на неделю"
     - role: user
-      content: "Бюджет 200 тысяч рублей"
+      content: "Бюджет 150 тысяч, поеду один"
     - role: user
-      content: "Поедем вдвоём с супругой"
+      content: "Знаешь, передумал. Лучше в Азию на ту же неделю"
     - role: user
-      content: "Подходит первый вариант"
+      content: "Подходит первый вариант из новых"
     - role: user
-      content: "Анна Смирнова, anna.smirnova@example.com"
+      content: "Игорь Лебедев, igor.lebedev@example.com"
     - role: user
-      content: "Согласна на обработку персональных данных"
+      content: "Согласен на обработку персональных данных"
   available_tools:
     - search_destinations
     - check_availability
@@ -29,10 +29,10 @@ input:
     - request_pii_consent
     - create_booking
   limits:
-    max_steps: 30
-    max_turns: 15
-    max_latency_s: 120
-    max_cost_usd: 0.50
+    max_steps: 35
+    max_turns: 20
+    max_latency_s: 150
+    max_cost_usd: 0.60
 
 expectations:
   terminal_state: confirmed
@@ -42,8 +42,6 @@ expectations:
     - name: search_destinations
       optional: false
     - name: calculate_price
-      optional: false
-    - name: validate_pii
       optional: false
     - name: request_pii_consent
       optional: false

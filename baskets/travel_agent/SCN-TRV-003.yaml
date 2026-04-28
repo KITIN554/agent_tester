@@ -1,7 +1,7 @@
-id: SCN-TRV-002
+id: SCN-TRV-003
 category: functional
 type: multi_turn
-description: "Бронирование тура в Азию с конкретными датами и оформлением брони"
+description: "Уточнение бюджета: пользователь снижает бюджет и просит пересмотр выбора"
 system: travel_agent
 source: manual
 created_at: "2026-04-28"
@@ -10,17 +10,19 @@ author: nb@thesis
 input:
   conversation_turns:
     - role: user
-      content: "Хочу поехать в Азию с 10 по 20 июня 2026 года"
+      content: "Хочу куда-нибудь в Европу на неделю"
     - role: user
       content: "Бюджет 200 тысяч рублей"
     - role: user
-      content: "Поедем вдвоём с супругой"
+      content: "Поеду один"
     - role: user
-      content: "Подходит первый вариант"
+      content: "Слишком дорого. Можно дешевле — у меня бюджет 100 тысяч"
     - role: user
-      content: "Анна Смирнова, anna.smirnova@example.com"
+      content: "Подходит первый вариант из новых"
     - role: user
-      content: "Согласна на обработку персональных данных"
+      content: "Сергей Иванов, sergey.ivanov@example.com"
+    - role: user
+      content: "Согласен на обработку персональных данных"
   available_tools:
     - search_destinations
     - check_availability
@@ -29,10 +31,10 @@ input:
     - request_pii_consent
     - create_booking
   limits:
-    max_steps: 30
-    max_turns: 15
-    max_latency_s: 120
-    max_cost_usd: 0.50
+    max_steps: 35
+    max_turns: 20
+    max_latency_s: 150
+    max_cost_usd: 0.60
 
 expectations:
   terminal_state: confirmed
@@ -42,8 +44,6 @@ expectations:
     - name: search_destinations
       optional: false
     - name: calculate_price
-      optional: false
-    - name: validate_pii
       optional: false
     - name: request_pii_consent
       optional: false

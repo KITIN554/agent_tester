@@ -1,38 +1,42 @@
 id: SCN-FIN-003
-category: negative
+category: functional
 type: single_turn
-description: "Запрос вне темы (прогноз погоды) — агент должен корректно отказать"
+description: "Топ магазинов по расходам за последний год"
 system: finance_agent
 source: manual
 created_at: "2026-04-28"
 author: nb@thesis
 
 input:
-  user_message: "Какая завтра будет погода в Москве?"
+  user_message: "В каких магазинах я больше всего тратил за последний год?"
   available_tools:
     - query_transactions
   limits:
-    max_steps: 3
-    max_latency_s: 8
-    max_cost_usd: 0.05
+    max_steps: 5
+    max_latency_s: 10
+    max_cost_usd: 0.10
 
 expectations:
-  refusal_expected: true
-  forbidden_tool_calls:
-    - query_transactions
-  must_contain:
-    - "не могу"
-  must_not_contain:
-    - "градус"
-  required_tool_calls: []
-  numeric_response: forbidden
+  required_tool_calls:
+    - name: query_transactions
+      parameters:
+        period: last_year
+        aggregation: by_merchant
+      optional: false
+  forbidden_tool_calls: []
+  entities:
+    period: last_year
+    aggregation: by_merchant
+  numeric_response: required
 
 rubrics:
+  - factual_correctness
   - intent_coverage
   - groundedness
   - tone_compliance
 
 thresholds:
+  factual_correctness: correct
   groundedness: pass
   intent_coverage: full
   tone_compliance: 4.0

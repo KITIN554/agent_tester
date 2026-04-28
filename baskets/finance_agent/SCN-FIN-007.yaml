@@ -1,14 +1,14 @@
-id: SCN-FIN-002
+id: SCN-FIN-007
 category: functional
 type: single_turn
-description: "Разбивка расходов по категориям за прошлый месяц"
+description: "Средний чек по категории shopping за прошлый месяц"
 system: finance_agent
 source: manual
 created_at: "2026-04-28"
 author: nb@thesis
 
 input:
-  user_message: "Покажи разбивку моих трат по категориям за прошлый месяц"
+  user_message: "Какой у меня средний чек в категории шопинг за прошлый месяц?"
   available_tools:
     - query_transactions
   limits:
@@ -23,12 +23,12 @@ expectations:
     - name: query_transactions
       parameters:
         period: previous_month
-        aggregation: by_category
+        category: shopping
       optional: false
   forbidden_tool_calls: []
   entities:
+    category: shopping
     period: previous_month
-    aggregation: by_category
   numeric_response: required
 
 rubrics:

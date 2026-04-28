@@ -1,7 +1,7 @@
-id: SCN-TRV-002
+id: SCN-TRV-006
 category: functional
 type: multi_turn
-description: "Бронирование тура в Азию с конкретными датами и оформлением брони"
+description: "Запрос конкретного города — Барселона на неделю"
 system: travel_agent
 source: manual
 created_at: "2026-04-28"
@@ -10,17 +10,17 @@ author: nb@thesis
 input:
   conversation_turns:
     - role: user
-      content: "Хочу поехать в Азию с 10 по 20 июня 2026 года"
+      content: "Хочу в Барселону на неделю"
     - role: user
-      content: "Бюджет 200 тысяч рублей"
+      content: "Бюджет 130 тысяч"
     - role: user
-      content: "Поедем вдвоём с супругой"
+      content: "Поеду один"
     - role: user
       content: "Подходит первый вариант"
     - role: user
-      content: "Анна Смирнова, anna.smirnova@example.com"
+      content: "Дмитрий Соколов, dmitry.sokolov@example.com"
     - role: user
-      content: "Согласна на обработку персональных данных"
+      content: "Согласен на обработку ПДн"
   available_tools:
     - search_destinations
     - check_availability
@@ -42,8 +42,6 @@ expectations:
     - name: search_destinations
       optional: false
     - name: calculate_price
-      optional: false
-    - name: validate_pii
       optional: false
     - name: request_pii_consent
       optional: false

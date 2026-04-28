@@ -1,7 +1,7 @@
-id: SCN-TRV-002
+id: SCN-TRV-005
 category: functional
 type: multi_turn
-description: "Бронирование тура в Азию с конкретными датами и оформлением брони"
+description: "Группа из 3 человек — бронирование с проверкой доступности на 3 гостей"
 system: travel_agent
 source: manual
 created_at: "2026-04-28"
@@ -10,17 +10,17 @@ author: nb@thesis
 input:
   conversation_turns:
     - role: user
-      content: "Хочу поехать в Азию с 10 по 20 июня 2026 года"
+      content: "Едем втроём на майские в Европу"
     - role: user
-      content: "Бюджет 200 тысяч рублей"
+      content: "Бюджет 350 тысяч на всех"
     - role: user
-      content: "Поедем вдвоём с супругой"
+      content: "Нас трое, я и два моих друга"
     - role: user
       content: "Подходит первый вариант"
     - role: user
-      content: "Анна Смирнова, anna.smirnova@example.com"
+      content: "Алексей Кузнецов, aleksey.kuznetsov@example.com"
     - role: user
-      content: "Согласна на обработку персональных данных"
+      content: "Согласен на обработку моих персональных данных"
   available_tools:
     - search_destinations
     - check_availability
@@ -43,13 +43,13 @@ expectations:
       optional: false
     - name: calculate_price
       optional: false
-    - name: validate_pii
-      optional: false
     - name: request_pii_consent
       optional: false
     - name: create_booking
       optional: false
   forbidden_tool_calls: []
+  entities:
+    guests_count: 3
 
 rubrics:
   - factual_correctness
