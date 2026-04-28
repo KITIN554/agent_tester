@@ -1,0 +1,423 @@
+"""Эволюционный цикл (spec 10): генератор сценариев + анализатор прогонов.
+
+Использует те же proxyapi.ru-вызовы, что и судья, чтобы не плодить SDK.
+Промпт sub-agent'а берётся из тела .claude/agents/<name>.md (frontmatter
+парсится отдельно, тело используется как system-сообщение для LLM).
+
+Защита ядра (spec 10): эта функциональность создаёт только новые YAML
+в `baskets/<system>/` и читает `systems/<system>/`. Никаких записей в
+`tester/metrics.py | gate.py | judge.py | models.py` модуль не делает.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import time
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+import yaml
+from rich.console import Console
+
+from .gate import load_baseline as load_baseline_report
+from .models import RunReport, Scenario
+
+_console = Console(stderr=True)
+
+_SUBAGENTS_DIR = Path(".claude/agents")
+_SYSTEMS_DIR = Path("systems")
+_BASKETS_DIR = Path("baskets")
+_REPORTS_DIR = Path("reports/runs")
+
+_SYSTEM_PREFIX = {"finance_agent": "FIN", "travel_agent": "TRV"}
+_DEFAULT_CATEGORIES = ("functional", "edge_case", "negative", "safety")
+
+
+# ---------------------------------------------------------------------------
+# Sub-agent loading
+# ---------------------------------------------------------------------------
+
+
+def _parse_subagent(path: Path) -> tuple[dict[str, Any], str]:
+    """Разделяет .claude/agents/<name>.md на frontmatter и тело."""
+    text = path.read_text(encoding="utf-8")
+    match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", text, re.DOTALL)
+    if not match:
+        return {}, text
+    frontmatter = yaml.safe_load(match.group(1)) or {}
+    body = match.group(2).strip()
+    return frontmatter, body
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _next_scenario_number(system: str, basket_dir: Path) -> int:
+    prefix = _SYSTEM_PREFIX.get(system)
+    if prefix is None:
+        raise ValueError(f"Неизвестная система: {system}")
+    if not basket_dir.exists():
+        return 1
+    existing: list[int] = []
+    for path in basket_dir.glob(f"SCN-{prefix}-*.yaml"):
+        m = re.match(rf"SCN-{prefix}-(\d{{3}})$", path.stem)
+        if m:
+            existing.append(int(m.group(1)))
+    return max(existing, default=0) + 1
+
+
+def _build_default_client() -> Any:
+    """Создаёт OpenAI-клиент через proxyapi (как везде в проекте)."""
+    from openai import OpenAI
+
+    return OpenAI(
+        api_key=os.environ["PROXY_API_KEY"],
+        base_url=os.environ.get("PROXY_BASE_URL", "https://api.proxyapi.ru/openrouter/v1"),
+    )
+
+
+def _build_system_context(system: str, systems_dir: Path = _SYSTEMS_DIR) -> str:
+    """Собирает компактный контекст: tools.py / prompts.py / agent.py системы."""
+    sys_dir = systems_dir / system
+    parts: list[str] = []
+    for fname in ("tools.py", "prompts.py", "agent.py"):
+        path = sys_dir / fname
+        if path.exists():
+            parts.append(f"### {fname}\n```python\n{path.read_text(encoding='utf-8')}\n```")
+    return "\n\n".join(parts) if parts else "(код системы недоступен)"
+
+
+def _existing_scenario_summary(basket_dir: Path) -> str:
+    """Текст со списком существующих ID и описаний для дедупликации."""
+    if not basket_dir.exists():
+        return "(пусто)"
+    lines: list[str] = []
+    for path in sorted(basket_dir.glob("SCN-*-*.yaml")):
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            continue
+        if isinstance(data, dict):
+            lines.append(f"- {data.get('id', path.stem)}: {data.get('description', '')}")
+    return "\n".join(lines) if lines else "(пусто)"
+
+
+# ---------------------------------------------------------------------------
+# invoke_scenario_generator
+# ---------------------------------------------------------------------------
+
+
+def invoke_scenario_generator(
+    system: str,
+    target_count: int,
+    categories: list[str] | None = None,
+    *,
+    client: Any = None,
+    model: str | None = None,
+    basket_dir: Path | None = None,
+) -> list[Scenario]:
+    """Программный вызов scenario-generator: LLM-вызов + сохранение YAML.
+
+    Возвращает список валидных Scenario. Невалидные пропускаются с warning.
+    Любая ошибка LLM/парсинга → пустой список (наружу не пробрасываем).
+    """
+    if categories is None:
+        categories = list(_DEFAULT_CATEGORIES)
+    if basket_dir is None:
+        basket_dir = _BASKETS_DIR / system
+
+    try:
+        _, agent_body = _parse_subagent(_SUBAGENTS_DIR / "scenario-generator.md")
+    except FileNotFoundError:
+        _console.print("[red]Не найден .claude/agents/scenario-generator.md[/red]")
+        return []
+
+    if client is None:
+        try:
+            client = _build_default_client()
+        except KeyError:
+            _console.print("[red]PROXY_API_KEY не установлен[/red]")
+            return []
+
+    if model is None:
+        model = os.environ.get("LLM_MODEL", "mistralai/mistral-medium-3.1")
+
+    user_prompt = _build_generator_prompt(
+        system=system,
+        target_count=target_count,
+        categories=categories,
+        basket_dir=basket_dir,
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": agent_body},
+                {"role": "user", "content": user_prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.7,
+            max_tokens=4000,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _console.print(f"[red]Ошибка LLM (генератор): {exc}[/red]")
+        return []
+
+    raw_content = response.choices[0].message.content or "{}"
+    try:
+        data = json.loads(raw_content)
+    except json.JSONDecodeError as exc:
+        _console.print(f"[red]Невалидный JSON генератора: {exc}[/red]")
+        return []
+
+    raw_scenarios = data.get("scenarios", []) if isinstance(data, dict) else []
+    if not isinstance(raw_scenarios, list):
+        return []
+
+    return _save_generated_scenarios(system, basket_dir, raw_scenarios)
+
+
+def _build_generator_prompt(
+    *, system: str, target_count: int, categories: list[str], basket_dir: Path
+) -> str:
+    context = _build_system_context(system)
+    existing = _existing_scenario_summary(basket_dir)
+    return (
+        f"Сгенерируй {target_count} новых тест-сценариев для системы {system}.\n\n"
+        f"Категории на выбор: {', '.join(categories)}.\n\n"
+        f"СУЩЕСТВУЮЩИЕ СЦЕНАРИИ (НЕ дублируй описания и сути):\n{existing}\n\n"
+        f"КОД ТЕСТИРУЕМОЙ СИСТЕМЫ:\n{context}\n\n"
+        "Верни СТРОГО JSON-объект формата:\n"
+        '{ "scenarios": [ <Scenario>, ... ] }\n\n'
+        "Где Scenario — словарь по spec 02 с обязательными полями:\n"
+        "category, type, description, system, input, expectations, rubrics.\n"
+        "ID не указывай — стенд проставит сам. Никакого текста вне JSON."
+    )
+
+
+def _save_generated_scenarios(
+    system: str, basket_dir: Path, raw_scenarios: list[Any]
+) -> list[Scenario]:
+    basket_dir.mkdir(parents=True, exist_ok=True)
+    next_n = _next_scenario_number(system, basket_dir)
+    prefix = _SYSTEM_PREFIX[system]
+    saved: list[Scenario] = []
+
+    for raw in raw_scenarios:
+        if not isinstance(raw, dict):
+            continue
+        candidate = {
+            **raw,
+            "id": f"SCN-{prefix}-{next_n:03d}",
+            "system": system,
+        }
+        try:
+            scenario = Scenario.model_validate(candidate)
+        except Exception as exc:  # noqa: BLE001 — мусор просто пропускаем
+            _console.print(f"[yellow]Невалидный сценарий пропущен: {exc}[/yellow]")
+            continue
+
+        path = basket_dir / f"{scenario.id}.yaml"
+        path.write_text(
+            yaml.safe_dump(
+                scenario.model_dump(mode="json"),
+                allow_unicode=True,
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        saved.append(scenario)
+        next_n += 1
+
+    return saved
+
+
+# ---------------------------------------------------------------------------
+# invoke_metric_analyzer
+# ---------------------------------------------------------------------------
+
+
+def invoke_metric_analyzer(
+    run_id: str | None = None,
+    basket: str | None = None,
+    *,
+    client: Any = None,
+    model: str | None = None,
+    reports_dir: Path = _REPORTS_DIR,
+) -> dict[str, Any]:
+    """Анализирует прогон, возвращает структурированный словарь.
+
+    Если run_id не задан — берёт последний non-block прогон по basket.
+    При любой ошибке возвращает {"error": ...}, исключение не пробрасывает.
+    """
+    report_path = _resolve_report_path(run_id, basket, reports_dir)
+    if isinstance(report_path, dict):
+        return report_path  # содержит ключ "error"
+
+    try:
+        _, agent_body = _parse_subagent(_SUBAGENTS_DIR / "metric-analyzer.md")
+    except FileNotFoundError:
+        return {"error": "metric-analyzer.md не найден"}
+
+    if client is None:
+        try:
+            client = _build_default_client()
+        except KeyError:
+            return {"error": "PROXY_API_KEY не установлен"}
+
+    if model is None:
+        model = os.environ.get("LLM_MODEL", "mistralai/mistral-medium-3.1")
+
+    report_text = report_path.read_text(encoding="utf-8")
+    user_prompt = (
+        "Проанализируй результаты прогона.\n\n"
+        f"REPORT.JSON:\n{report_text}\n\n"
+        "Верни СТРОГО JSON со структурой:\n"
+        '{ "run_id": "...", '
+        '"regressions": [{"scenario_id": "...", "rubric": "...", '
+        '"root_cause": "...", "suggested_fix": "..."}], '
+        '"improvements": [...], '
+        '"patterns": [...], '
+        '"recommendations": [...] }\n\n'
+        "Никакого текста вне JSON."
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": agent_body},
+                {"role": "user", "content": user_prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.0,
+            max_tokens=2000,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"LLM error: {exc}"}
+
+    raw_content = response.choices[0].message.content or "{}"
+    try:
+        return json.loads(raw_content)
+    except json.JSONDecodeError as exc:
+        return {"error": f"parse error: {exc}"}
+
+
+def _resolve_report_path(
+    run_id: str | None, basket: str | None, reports_dir: Path
+) -> Path | dict[str, str]:
+    if run_id:
+        path = reports_dir / run_id / "report.json"
+        if not path.exists():
+            return {"error": f"Прогон {run_id} не найден"}
+        return path
+    if basket:
+        report = load_baseline_report(reports_dir, basket)
+        if report is None:
+            return {"error": f"Нет non-block прогонов для {basket}"}
+        return reports_dir / report.run_id / "report.json"
+    return {"error": "Укажи run_id или basket"}
+
+
+# ---------------------------------------------------------------------------
+# run_evolution_cycle
+# ---------------------------------------------------------------------------
+
+
+def run_evolution_cycle(
+    system: str,
+    rounds: int = 1,
+    *,
+    target_count: int = 3,
+    categories: list[str] | None = None,
+    output_dir: Path = _REPORTS_DIR,
+    basket_root: Path = _BASKETS_DIR,
+    generator_fn: Callable[..., list[Scenario]] | None = None,
+    analyzer_fn: Callable[..., dict[str, Any]] | None = None,
+    runner_fn: Callable[..., RunReport] | None = None,
+) -> list[dict[str, Any]]:
+    """Полный эволюционный цикл (spec 10).
+
+    Шаги (повторить N раз):
+        1) generate — добавить новые сценарии в корзину
+        2) run — прогнать корзину через orchestrator
+        3) analyze — получить структурированные рекомендации
+        4) залогировать lead_time_metrics в report.json
+
+    Возвращает list[dict] с историей циклов: scenario_count, run_id,
+    lead_time_metrics, analysis. DI-фабрики для тестов.
+    """
+    if generator_fn is None:
+        generator_fn = invoke_scenario_generator
+    if analyzer_fn is None:
+        analyzer_fn = invoke_metric_analyzer
+    if runner_fn is None:
+        from .orchestrator import run_basket as default_runner
+
+        runner_fn = default_runner
+
+    basket_dir = basket_root / system
+    history: list[dict[str, Any]] = []
+
+    for round_idx in range(rounds):
+        gen_start = time.monotonic()
+        new_scenarios = generator_fn(
+            system=system,
+            target_count=target_count,
+            categories=categories,
+            basket_dir=basket_dir,
+        )
+        gen_seconds = time.monotonic() - gen_start
+
+        run_start = time.monotonic()
+        report = runner_fn(basket_dir=basket_dir, output_dir=output_dir)
+        run_seconds = time.monotonic() - run_start
+
+        analysis_start = time.monotonic()
+        analysis = analyzer_fn(run_id=report.run_id, reports_dir=output_dir)
+        analysis_seconds = time.monotonic() - analysis_start
+
+        lead_time = {
+            "scenario_generation_seconds": round(gen_seconds, 2),
+            "regression_run_seconds": round(run_seconds, 2),
+            "analysis_seconds": round(analysis_seconds, 2),
+            "total_cycle_seconds": round(gen_seconds + run_seconds + analysis_seconds, 2),
+        }
+        _persist_lead_time(report, output_dir, lead_time)
+
+        history.append(
+            {
+                "round": round_idx + 1,
+                "scenario_count": len(new_scenarios),
+                "run_id": report.run_id,
+                "lead_time_metrics": lead_time,
+                "analysis": analysis,
+            }
+        )
+
+    return history
+
+
+def _persist_lead_time(
+    report: RunReport,
+    output_dir: Path,
+    metrics: dict[str, float],
+) -> None:
+    """Перезаписывает report.json новой копией с заполненным lead_time_metrics."""
+    updated = report.model_copy(update={"lead_time_metrics": metrics})
+    path = output_dir / report.run_id / "report.json"
+    if path.exists():
+        path.write_text(updated.model_dump_json(indent=2), encoding="utf-8")
+
+
+__all__ = [
+    "invoke_scenario_generator",
+    "invoke_metric_analyzer",
+    "run_evolution_cycle",
+]

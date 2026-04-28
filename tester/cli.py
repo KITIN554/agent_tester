@@ -320,5 +320,123 @@ def _load_report(path: Path) -> RunReport:
     return RunReport.model_validate(json.loads(path.read_text(encoding="utf-8")))
 
 
+# ---------------------------------------------------------------------------
+# tester evolve (group)
+# ---------------------------------------------------------------------------
+
+
+@main.group()
+def evolve() -> None:
+    """Эволюционный цикл: generate / analyze / cycle (spec 10)."""
+
+
+@evolve.command(name="generate")
+@click.option("--system", required=True, help="Имя системы (finance_agent / travel_agent).")
+@click.option("--target-count", default=10, type=int, help="Сколько сценариев сгенерировать.")
+@click.option(
+    "--categories",
+    default=None,
+    help="Список категорий через запятую (по умолчанию все).",
+)
+@click.option(
+    "--basket-dir",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Куда писать YAML (по умолчанию baskets/<system>).",
+)
+def evolve_generate(
+    system: str,
+    target_count: int,
+    categories: str | None,
+    basket_dir: Path | None,
+) -> None:
+    """Сгенерировать N новых сценариев через scenario-generator sub-agent."""
+    from .evolution import invoke_scenario_generator
+
+    cats = [c.strip() for c in categories.split(",")] if categories else None
+    saved = invoke_scenario_generator(
+        system=system,
+        target_count=target_count,
+        categories=cats,
+        basket_dir=basket_dir,
+    )
+    if not saved:
+        console.print("[yellow]Не удалось сгенерировать ни одного сценария.[/yellow]")
+        raise click.exceptions.Exit(1)
+    console.print(f"[green]✓ Сохранено сценариев: {len(saved)}[/green]")
+    for s in saved:
+        console.print(f"  {s.id} [{s.category.value}] — {s.description}")
+
+
+@evolve.command(name="analyze")
+@click.option("--basket", default=None, help="Имя корзины (для последнего non-block прогона).")
+@click.option("--run-id", default=None, help="Конкретный run_id для анализа.")
+@click.option(
+    "--reports-dir",
+    default=Path("reports/runs"),
+    type=click.Path(path_type=Path),
+)
+def evolve_analyze(
+    basket: str | None,
+    run_id: str | None,
+    reports_dir: Path,
+) -> None:
+    """Анализ прогона через metric-analyzer sub-agent."""
+    from .evolution import invoke_metric_analyzer
+
+    if not basket and not run_id:
+        console.print("[red]Укажи --basket или --run-id[/red]")
+        raise click.exceptions.Exit(1)
+
+    result = invoke_metric_analyzer(run_id=run_id, basket=basket, reports_dir=reports_dir)
+    if "error" in result:
+        console.print(f"[red]{result['error']}[/red]")
+        raise click.exceptions.Exit(1)
+
+    console.print_json(data=result)
+
+
+@evolve.command(name="cycle")
+@click.option("--system", required=True)
+@click.option("--rounds", default=1, type=int, help="Сколько раундов цикла прогнать.")
+@click.option("--target-count", default=3, type=int)
+@click.option(
+    "--output",
+    default=Path("reports/runs"),
+    type=click.Path(path_type=Path),
+)
+def evolve_cycle(
+    system: str,
+    rounds: int,
+    target_count: int,
+    output: Path,
+) -> None:
+    """Полный эволюционный цикл: generate → run → analyze (× rounds)."""
+    from .evolution import run_evolution_cycle
+
+    history = run_evolution_cycle(
+        system=system,
+        rounds=rounds,
+        target_count=target_count,
+        output_dir=output,
+    )
+    if not history:
+        console.print("[red]Цикл не сделал ни одного раунда.[/red]")
+        raise click.exceptions.Exit(1)
+
+    console.rule("[bold]История эволюционного цикла")
+    for entry in history:
+        console.print(
+            f"Round {entry['round']}: scenarios={entry['scenario_count']}, run_id={entry['run_id']}"
+        )
+        lt = entry["lead_time_metrics"]
+        console.print(
+            f"  generation: {lt['scenario_generation_seconds']}s, "
+            f"run: {lt['regression_run_seconds']}s, "
+            f"analysis: {lt['analysis_seconds']}s, "
+            f"total: {lt['total_cycle_seconds']}s"
+        )
+
+
 if __name__ == "__main__":  # pragma: no cover
     main()

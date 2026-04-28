@@ -290,6 +290,10 @@ class RunReport(BaseModel):
     avg_latency_s: float = 0.0
     p95_latency_s: float = 0.0
 
+    # Lead time эволюционного цикла (заполняется только если прогон запущен
+    # через `tester evolve cycle`); используется для аргумента lead time в гл. 3.
+    lead_time_metrics: dict[str, float] | None = None
+
     @classmethod
     def from_outcomes(
         cls,
