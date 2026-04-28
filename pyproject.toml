@@ -1,0 +1,64 @@
+[project]
+name = "agent-tester"
+version = "0.1.0"
+description = "Methodology for testing LLM agent systems — master's thesis prototype"
+authors = [{ name = "Nikita Boyandin" }]
+requires-python = ">=3.11"
+dependencies = [
+    # LLM client (OpenAI-compatible, used for proxyapi.ru/deepseek)
+    "openai>=1.50.0",
+
+    # Core data and config
+    "pydantic>=2.8.0",
+    "pyyaml>=6.0.2",
+    "python-dotenv>=1.0.1",
+
+    # Agents and tooling
+    "tenacity>=9.0.0",        # retries with backoff
+    "tiktoken>=0.7.0",        # token counting
+
+    # Reporting and dashboard
+    "jinja2>=3.1.4",          # HTML report templates
+    "streamlit>=1.39.0",      # local dashboard
+    "pandas>=2.2.0",          # tabular data for reports
+    "plotly>=5.24.0",         # charts
+
+    # Synthetic data generation
+    "faker>=30.0.0",          # synthetic transactions and bookings
+
+    # CLI
+    "click>=8.1.0",           # CLI for the tester
+    "rich>=13.9.0",           # pretty terminal output
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.7.0",            # linter + formatter
+    "mypy>=1.13.0",           # type checking
+]
+
+[project.scripts]
+# CLI entry points
+tester = "tester.cli:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["tester*", "systems*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+asyncio_mode = "auto"
