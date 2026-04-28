@@ -365,7 +365,7 @@ def evolve_generate(
         raise click.exceptions.Exit(1)
     console.print(f"[green]✓ Сохранено сценариев: {len(saved)}[/green]")
     for s in saved:
-        console.print(f"  {s.id} [{s.category.value}] — {s.description}")
+        console.print(f"  {s.id} \\[{s.category.value}] — {s.description}")
 
 
 @evolve.command(name="analyze")

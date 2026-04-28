@@ -188,15 +188,68 @@ def _build_generator_prompt(
 ) -> str:
     context = _build_system_context(system)
     existing = _existing_scenario_summary(basket_dir)
+    skeleton = json.dumps(
+        {
+            "scenarios": [
+                {
+                    "category": "functional",
+                    "type": "single_turn",
+                    "description": "Краткое описание на русском",
+                    "system": system,
+                    "input": {
+                        "user_message": "Реплика пользователя (для single_turn)",
+                        "available_tools": ["имя_инструмента"],
+                        "limits": {
+                            "max_steps": 5,
+                            "max_latency_s": 10,
+                            "max_cost_usd": 0.10,
+                        },
+                    },
+                    "expectations": {
+                        "must_contain": ["подстрока"],
+                        "required_tool_calls": [
+                            {
+                                "name": "имя_инструмента",
+                                "parameters": {"key": "value"},
+                                "optional": False,
+                            }
+                        ],
+                        "forbidden_tool_calls": [],
+                        "numeric_response": "required",
+                    },
+                    "rubrics": [
+                        "factual_correctness",
+                        "intent_coverage",
+                        "groundedness",
+                        "tone_compliance",
+                    ],
+                    "thresholds": {
+                        "factual_correctness": "correct",
+                        "groundedness": "pass",
+                        "intent_coverage": "full",
+                        "tone_compliance": 4.0,
+                    },
+                }
+            ]
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
     return (
         f"Сгенерируй {target_count} новых тест-сценариев для системы {system}.\n\n"
         f"Категории на выбор: {', '.join(categories)}.\n\n"
         f"СУЩЕСТВУЮЩИЕ СЦЕНАРИИ (НЕ дублируй описания и сути):\n{existing}\n\n"
         f"КОД ТЕСТИРУЕМОЙ СИСТЕМЫ:\n{context}\n\n"
-        "Верни СТРОГО JSON-объект формата:\n"
-        '{ "scenarios": [ <Scenario>, ... ] }\n\n'
-        "Где Scenario — словарь по spec 02 с обязательными полями:\n"
-        "category, type, description, system, input, expectations, rubrics.\n"
+        "ОБЯЗАТЕЛЬНО соблюдай схему из примера:\n"
+        "- rubrics — это СПИСОК строк (например, "
+        '["factual_correctness", "intent_coverage"]), а не словарь\n'
+        "- thresholds — словарь, отдельное поле от rubrics\n"
+        "- для negative-сценариев expectations.refusal_expected = true И "
+        "forbidden_tool_calls — непустой список\n"
+        "- для multi_turn вместо input.user_message используй "
+        'input.conversation_turns: [{"role": "user", "content": "..."}, ...]\n\n'
+        "Верни СТРОГО JSON-объект ровно по этому шаблону:\n"
+        f"{skeleton}\n\n"
         "ID не указывай — стенд проставит сам. Никакого текста вне JSON."
     )
 
