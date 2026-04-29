@@ -1,0 +1,43 @@
+id: SCN-FIN-020
+category: edge_case
+type: single_turn
+description: Запрос на количество транзакций за конкретный день
+system: finance_agent
+source: manual
+created_at: null
+author: null
+parent_id: null
+input:
+  user_message: Сколько у меня было покупок 15 мая 2026 года?
+  conversation_turns: null
+  available_tools:
+  - query_transactions
+  limits:
+    max_steps: 5
+    max_latency_s: 10
+    max_cost_usd: 0.1
+expectations:
+  terminal_state: null
+  refusal_expected: false
+  must_contain:
+  - покупок
+  must_not_contain: []
+  required_tool_calls:
+  - name: query_transactions
+    parameters:
+      period: range:2026-05-15..2026-05-15
+      aggregation: count
+    optional: false
+  forbidden_tool_calls: []
+  entities: {}
+  numeric_response: required
+rubrics:
+- factual_correctness
+- intent_coverage
+- groundedness
+- tone_compliance
+thresholds:
+  factual_correctness: correct
+  groundedness: pass
+  intent_coverage: full
+  tone_compliance: 4.0

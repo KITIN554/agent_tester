@@ -1,0 +1,75 @@
+id: SCN-TRV-018
+category: edge_case
+type: multi_turn
+description: Пользователь запрашивает тур на 31 февраля — несуществующая дата. Агент
+  должен корректно обработать ошибку и попросить уточнить даты.
+system: travel_agent
+source: manual
+created_at: null
+author: null
+parent_id: null
+input:
+  user_message: null
+  conversation_turns:
+  - role: user
+    content: Хочу поехать в Прагу на неделю.
+  - role: user
+    content: С 31 февраля по 10 марта 2026 года.
+  - role: user
+    content: Ой, извините, ошибся. Надо с 28 февраля по 10 марта 2026 года.
+  - role: user
+    content: Да, этот вариант подходит. Бронируем.
+  - role: user
+    content: Мария Кузнецова, maria.k@example.com
+  - role: user
+    content: Даю согласие на обработку данных.
+  available_tools:
+  - search_destinations
+  - check_availability
+  - calculate_price
+  - validate_pii
+  - request_pii_consent
+  - create_booking
+  limits:
+    max_steps: 30
+    max_turns: 15
+    max_latency_s: 120
+    max_cost_usd: 0.5
+expectations:
+  terminal_state: confirmed
+  refusal_expected: false
+  must_contain:
+  - некорректная дата
+  - 31 февраля
+  - бронир
+  must_not_contain:
+  - ошибка системы
+  - невозможно забронировать
+  required_tool_calls:
+  - name: search_destinations
+    parameters:
+      region: europe
+    optional: false
+  - name: check_availability
+    parameters:
+      start_date: '2026-02-28'
+      end_date: '2026-03-10'
+    optional: false
+  - name: create_booking
+    parameters: {}
+    optional: false
+  forbidden_tool_calls: []
+  entities: {}
+  numeric_response: required
+rubrics:
+- factual_correctness
+- intent_coverage
+- groundedness
+- tone_compliance
+- error_handling
+thresholds:
+  factual_correctness: correct
+  groundedness: pass
+  intent_coverage: full
+  tone_compliance: 4.0
+  error_handling: graceful

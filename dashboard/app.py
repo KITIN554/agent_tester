@@ -18,7 +18,14 @@ if str(_PROJECT_ROOT) not in sys.path:
 import streamlit as st  # noqa: E402
 
 from dashboard.data_loader import list_baskets, list_runs, load_report  # noqa: E402
-from dashboard.views import pareto, scenario, summary, trends  # noqa: E402
+from dashboard.views import (  # noqa: E402
+    heatmap,
+    pareto,
+    scenario,
+    summary,
+    trends,
+    versions,
+)
 
 
 def main() -> None:
@@ -52,14 +59,27 @@ def main() -> None:
     current_report = load_report(current_run_id)
     baseline_report = load_report(baseline_run_id) if baseline_run_id != "—" else None
 
-    tab1, tab2, tab3, tab4 = st.tabs(["📋 Сводка", "📈 Динамика", "🎯 Парето", "🔍 Сценарий"])
-    with tab1:
+    tabs = st.tabs(
+        [
+            "📋 Сводка",
+            "📈 Версии",
+            "📊 Heatmap",
+            "📈 Динамика",
+            "🎯 Парето",
+            "🔍 Сценарий",
+        ]
+    )
+    with tabs[0]:
         summary.render(current_report, baseline_report)
-    with tab2:
+    with tabs[1]:
+        versions.render(basket, runs)
+    with tabs[2]:
+        heatmap.render(basket, runs)
+    with tabs[3]:
         trends.render(basket, runs)
-    with tab3:
+    with tabs[4]:
         pareto.render(basket, runs)
-    with tab4:
+    with tabs[5]:
         scenario.render(current_report)
 
 

@@ -147,3 +147,99 @@ tr.status-fail td:last-child {
   padding-top: 16px;
   border-top: 1px solid #e0e0e0;
 }
+
+/* Sticky topbar */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 8px 0;
+  margin: -24px -16px 16px -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.9em;
+}
+
+.gate-mini {
+  font-size: 0.85em !important;
+  padding: 4px 12px !important;
+  margin-right: 0 !important;
+}
+
+.topbar-meta {
+  flex: 1;
+  color: #555;
+}
+
+.topbar-links a {
+  margin-left: 12px;
+  color: #1565c0;
+  text-decoration: none;
+}
+
+.topbar-links a:hover {
+  text-decoration: underline;
+}
+
+/* Прогресс-бары для метрик */
+
+.metric-cell {
+  white-space: nowrap;
+}
+
+.metric-value {
+  display: inline-block;
+  margin-right: 8px;
+  font-variant-numeric: tabular-nums;
+  min-width: 3em;
+}
+
+.bar {
+  display: inline-block;
+  width: 120px;
+  height: 8px;
+  background: #eee;
+  border-radius: 4px;
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+.bar .fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.bar-ok    { background: #2e7d32; }
+.bar-warn  { background: #f9a825; }
+.bar-fail  { background: #c62828; }
+
+/* Иконки статусов */
+
+.icon-ok {
+  color: #2e7d32;
+  font-weight: 700;
+  font-size: 1.1em;
+}
+
+.icon-fail {
+  color: #c62828;
+  font-weight: 700;
+  font-size: 1.1em;
+}
+
+/* @media print */
+
+@media print {
+  .topbar { position: static; }
+  body { max-width: none; }
+  .outcome-pass details { display: block; }
+  .outcome-pass summary { font-weight: 600; }
+  a { color: #000; text-decoration: none; }
+}

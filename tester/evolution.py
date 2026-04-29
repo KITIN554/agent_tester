@@ -356,6 +356,9 @@ def _save_generated_scenarios(
 # ---------------------------------------------------------------------------
 
 
+_ANALYSIS_DIR = Path("reports/analysis")
+
+
 def invoke_metric_analyzer(
     run_id: str | None = None,
     basket: str | None = None,
@@ -363,11 +366,14 @@ def invoke_metric_analyzer(
     client: Any = None,
     model: str | None = None,
     reports_dir: Path = _REPORTS_DIR,
+    save_to: Path | None = _ANALYSIS_DIR,
 ) -> dict[str, Any]:
     """Анализирует прогон, возвращает структурированный словарь.
 
     Если run_id не задан — берёт последний non-block прогон по basket.
     При любой ошибке возвращает {"error": ...}, исключение не пробрасывает.
+    Если задан save_to — после получения результата кладёт `<run_id>.json`
+    и `<run_id>.md` в этот каталог (создаёт его при необходимости).
     """
     report_path = _resolve_report_path(run_id, basket, reports_dir)
     if isinstance(report_path, dict):
@@ -417,9 +423,59 @@ def invoke_metric_analyzer(
 
     raw_content = response.choices[0].message.content or "{}"
     try:
-        return json.loads(raw_content)
+        result = json.loads(raw_content)
     except json.JSONDecodeError as exc:
         return {"error": f"parse error: {exc}"}
+
+    if save_to is not None:
+        _persist_analysis(result, run_id=report_path.parent.name, save_to=save_to)
+    return result
+
+
+def _persist_analysis(result: dict[str, Any], *, run_id: str, save_to: Path) -> None:
+    """Кладёт <run_id>.json и <run_id>.md в save_to."""
+    save_to.mkdir(parents=True, exist_ok=True)
+    (save_to / f"{run_id}.json").write_text(
+        json.dumps(result, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (save_to / f"{run_id}.md").write_text(
+        _render_analysis_markdown(result, run_id),
+        encoding="utf-8",
+    )
+
+
+def _render_analysis_markdown(result: dict[str, Any], run_id: str) -> str:
+    if "error" in result:
+        return f"# Анализ прогона {run_id}\n\nОшибка анализа: {result['error']}\n"
+
+    lines = [f"# Анализ прогона {run_id}", ""]
+    for section, title in (
+        ("regressions", "Регрессии"),
+        ("improvements", "Улучшения"),
+        ("patterns", "Паттерны"),
+        ("recommendations", "Рекомендации"),
+    ):
+        items = result.get(section) or []
+        lines.append(f"## {title}")
+        if not items:
+            lines.append("— ничего не выявлено.")
+        else:
+            for item in items:
+                if isinstance(item, dict):
+                    head = item.get("scenario_id") or item.get("name") or "запись"
+                    rubric = item.get("rubric")
+                    cause = item.get("root_cause") or item.get("cause") or ""
+                    fix = item.get("suggested_fix") or item.get("fix") or ""
+                    lines.append(f"- **{head}**" + (f" / {rubric}" if rubric else ""))
+                    if cause:
+                        lines.append(f"  - причина: {cause}")
+                    if fix:
+                        lines.append(f"  - предложено: {fix}")
+                else:
+                    lines.append(f"- {item}")
+        lines.append("")
+    return "\n".join(lines)
 
 
 def _resolve_report_path(

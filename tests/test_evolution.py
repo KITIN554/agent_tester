@@ -236,6 +236,7 @@ def test_analyzer_returns_structured_dict(tmp_path: Path, mock_proxy_client: Any
         client=mock_proxy_client,
         model="test-model",
         reports_dir=reports_dir,
+        save_to=None,  # не пишем в реальный reports/analysis/ во время тестов
     )
     assert "error" not in result
     assert "regressions" in result
@@ -403,3 +404,58 @@ def test_generator_prompt_no_few_shot_for_empty_basket(tmp_path: Path) -> None:
         basket_dir=tmp_path / "empty",
     )
     assert "ПРИМЕРЫ УЖЕ ВАЛИДНЫХ" not in prompt
+
+
+def test_analyzer_persists_to_analysis_dir(tmp_path: Path, mock_proxy_client: Any) -> None:
+    """invoke_metric_analyzer кладёт <run_id>.json и .md в save_to."""
+    reports_dir = tmp_path / "reports"
+    _write_run_report(reports_dir)
+    save_to = tmp_path / "analysis"
+
+    mock_proxy_client.queue_response(
+        content=json.dumps(
+            {
+                "run_id": "20260428-150000-finance_agent",
+                "regressions": [
+                    {
+                        "scenario_id": "SCN-FIN-001",
+                        "rubric": "intent_coverage",
+                        "root_cause": "тест",
+                        "suggested_fix": "тест",
+                    }
+                ],
+                "improvements": [],
+                "patterns": [],
+                "recommendations": ["рекомендация"],
+            }
+        )
+    )
+    result = evolution.invoke_metric_analyzer(
+        run_id="20260428-150000-finance_agent",
+        client=mock_proxy_client,
+        model="test-model",
+        reports_dir=reports_dir,
+        save_to=save_to,
+    )
+    assert "error" not in result
+    assert (save_to / "20260428-150000-finance_agent.json").exists()
+    md = (save_to / "20260428-150000-finance_agent.md").read_text()
+    assert "Анализ прогона" in md
+    assert "SCN-FIN-001" in md
+    assert "intent_coverage" in md
+
+
+def test_analyzer_save_to_none_does_not_write(tmp_path: Path, mock_proxy_client: Any) -> None:
+    """save_to=None отключает персистенцию."""
+    reports_dir = tmp_path / "reports"
+    _write_run_report(reports_dir)
+    save_to = tmp_path / "analysis"
+
+    mock_proxy_client.queue_response(content=json.dumps({"regressions": []}))
+    evolution.invoke_metric_analyzer(
+        run_id="20260428-150000-finance_agent",
+        client=mock_proxy_client,
+        reports_dir=reports_dir,
+        save_to=None,
+    )
+    assert not save_to.exists()

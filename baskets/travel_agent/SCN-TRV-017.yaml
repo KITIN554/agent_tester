@@ -1,0 +1,89 @@
+id: SCN-TRV-017
+category: functional
+type: multi_turn
+description: 'Бронирование зимнего отдыха в России с детьми: подбор горнолыжного курорта,
+  уточнение дат и оформление брони для семьи из 4 человек'
+system: travel_agent
+source: manual
+created_at: null
+author: null
+parent_id: null
+input:
+  user_message: null
+  conversation_turns:
+  - role: user
+    content: Хотим покататься на лыжах всей семьёй в феврале. Подскажи варианты в
+      России.
+  - role: user
+    content: 'Нас будет четверо: двое взрослых и двое детей 10 и 12 лет. Бюджет до
+      250 тысяч.'
+  - role: user
+    content: Нам подходит вариант с горнолыжным курортом в Сочи, но нужно проверить
+      наличие на 15-25 февраля 2026 года.
+  - role: user
+    content: Да, эти даты устраивают. Оформляем этот вариант.
+  - role: user
+    content: Алексей Иванов, alexey.ivanov@example.com
+  - role: user
+    content: Подтверждаю согласие на обработку персональных данных.
+  available_tools:
+  - search_destinations
+  - check_availability
+  - calculate_price
+  - validate_pii
+  - request_pii_consent
+  - create_booking
+  limits:
+    max_steps: 30
+    max_turns: 15
+    max_latency_s: 120
+    max_cost_usd: 0.5
+expectations:
+  terminal_state: confirmed
+  refusal_expected: false
+  must_contain:
+  - бронир
+  - Сочи
+  - '250'
+  must_not_contain:
+  - недоступно
+  - отказано
+  required_tool_calls:
+  - name: search_destinations
+    parameters:
+      region: russia
+      guests: 4
+      max_budget_rub: 250000
+    optional: false
+  - name: check_availability
+    parameters:
+      start_date: '2026-02-15'
+      end_date: '2026-02-25'
+    optional: false
+  - name: calculate_price
+    parameters:
+      guests: 4
+    optional: false
+  - name: validate_pii
+    parameters: {}
+    optional: false
+  - name: request_pii_consent
+    parameters: {}
+    optional: false
+  - name: create_booking
+    parameters:
+      guests: 4
+    optional: false
+  forbidden_tool_calls: []
+  entities: {}
+  numeric_response: required
+rubrics:
+- factual_correctness
+- intent_coverage
+- groundedness
+- tone_compliance
+thresholds:
+  factual_correctness: correct
+  groundedness: pass
+  intent_coverage: full
+  tone_compliance: 4.0

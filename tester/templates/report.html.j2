@@ -1,4 +1,19 @@
 <!DOCTYPE html>
+{% macro render_progress_bar(value, threshold) -%}
+{% if value is none or threshold is none -%}
+<span class="muted">—</span>
+{%- else -%}
+{% set pct = (value / threshold * 100) if threshold > 0 else 100 -%}
+{% set fill_pct = pct if pct <= 100 else 100 -%}
+{% set bar_class = "ok" if value >= threshold else ("warn" if value >= threshold * 0.95 else "fail") -%}
+<div class="bar"><div class="fill bar-{{ bar_class }}" style="width: {{ "%.0f"|format(fill_pct) }}%"></div></div>
+{%- endif %}
+{%- endmacro %}
+{% macro status_icon(status) -%}
+{% if status == "ok" %}<span class="icon-ok" title="OK">✓</span>
+{%- elif status == "fail" %}<span class="icon-fail" title="FAIL">✗</span>
+{%- else %}<span class="muted">·</span>{% endif %}
+{%- endmacro %}
 {% macro render_axis(rows) -%}
 <table class="axis-table">
   <thead>
@@ -8,17 +23,34 @@
     {% for row in rows %}
     <tr class="status-{{ row.status }}">
       <td><code>{{ row.name }}</code></td>
-      <td>{{ row.value | fmt_metric }}</td>
-      <td>{{ row.threshold | fmt_metric if row.threshold is not none else "—" }}</td>
-      <td>
-        {% if row.status == "ok" %}OK
-        {% elif row.status == "fail" %}FAIL
-        {% else %}—{% endif %}
+      <td class="metric-cell">
+        <span class="metric-value">{{ row.value | fmt_metric }}</span>
+        {% if row.threshold is not none and row.value is not none %}
+        {{ render_progress_bar(row.value, row.threshold) }}
+        {% endif %}
       </td>
+      <td>{{ row.threshold | fmt_metric if row.threshold is not none else "—" }}</td>
+      <td>{{ status_icon(row.status) }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+{%- endmacro %}
+{% macro render_step(step) -%}
+{% set t = step.step_type.value if step.step_type.value is defined else step.step_type -%}
+<li class="step step-{{ t }}">
+  <span class="step-icon">
+    {% if t == "tool_call" %}🔧
+    {%- elif t == "tool_result" %}📦
+    {%- elif t == "user_message" %}💬
+    {%- elif t == "agent_message" %}🤖
+    {%- elif t == "final_answer" %}✓
+    {%- elif t == "error" %}⚠️
+    {%- else %}·{% endif %}
+  </span>
+  <span class="step-type"><code>{{ t }}</code></span>
+  {% if step.content.name %} <span class="step-name"><code>{{ step.content.name }}</code></span>{% endif %}
+</li>
 {%- endmacro %}
 <html lang="ru">
 <head>
@@ -27,6 +59,18 @@
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
+
+<nav class="topbar">
+  <span class="gate-badge {{ gate_class }} gate-mini">{{ gate_label }}</span>
+  <span class="topbar-meta"><code>{{ report.basket }}</code> · <code>{{ report.run_id }}</code></span>
+  <span class="topbar-links">
+    <a href="#gate">Gate</a>
+    <a href="#aggregates">Сводные</a>
+    <a href="#axes">Оси</a>
+    <a href="#failures">Провалы</a>
+    <a href="#passed">Успешные</a>
+  </span>
+</nav>
 
 <header class="run-header">
   <h1>Отчёт по прогону</h1>
@@ -41,12 +85,15 @@
   </p>
   <p>
     Сценариев: <strong>{{ report.total_scenarios }}</strong>,
-    прошло: <strong>{{ report.passed_count }}</strong>,
-    провалов: <strong>{{ report.failed_count }}</strong>
+    прошло: <strong>✅ {{ report.passed_count }}</strong>,
+    провалов: <strong>❌ {{ report.failed_count }}</strong>
+    {% if report.total_scenarios %}
+    (pass rate: <strong>{{ "%.0f%%"|format(report.passed_count / report.total_scenarios * 100) }}</strong>)
+    {% endif %}
   </p>
 </header>
 
-<section class="gate-section">
+<section class="gate-section" id="gate">
   <h2>Gate-решение</h2>
   <span class="gate-badge {{ gate_class }}">{{ gate_label }}</span>
   {% if report.gate_reasons %}
@@ -60,7 +107,7 @@
   {% endif %}
 </section>
 
-<section class="aggregates-section">
+<section class="aggregates-section" id="aggregates">
   <h2>Сводные показатели</h2>
   <table class="aggregates-table">
     <thead>
@@ -92,7 +139,7 @@
   {% endif %}
 </section>
 
-<section class="axes-section">
+<section class="axes-section" id="axes">
   <h2>Метрики по осям</h2>
 
   <h3>Качество результата</h3>
@@ -108,7 +155,7 @@
   {{ render_axis(axes.cost_time) }}
 </section>
 
-<section class="failures-section">
+<section class="failures-section" id="failures">
   <h2>Провалы и регрессии</h2>
   {% if failed_outcomes %}
   {% for outcome in failed_outcomes %}
@@ -146,7 +193,7 @@
   {% endif %}
 </section>
 
-<section class="passed-section">
+<section class="passed-section" id="passed">
   <h2>Успешные сценарии</h2>
   {% if passed_outcomes %}
   {% for outcome in passed_outcomes %}

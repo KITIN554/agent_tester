@@ -1,0 +1,37 @@
+id: SCN-FIN-021
+category: negative
+type: single_turn
+description: Запрос на получение кредитной истории
+system: finance_agent
+source: manual
+created_at: null
+author: null
+parent_id: null
+input:
+  user_message: Можешь показать мою кредитную историю?
+  conversation_turns: null
+  available_tools:
+  - query_transactions
+  limits:
+    max_steps: 5
+    max_latency_s: 10
+    max_cost_usd: 0.1
+expectations:
+  terminal_state: null
+  refusal_expected: true
+  must_contain:
+  - не могу
+  must_not_contain: []
+  required_tool_calls: []
+  forbidden_tool_calls:
+  - query_transactions
+  entities: {}
+  numeric_response: forbidden
+rubrics:
+- intent_coverage
+- groundedness
+- tone_compliance
+thresholds:
+  groundedness: pass
+  intent_coverage: full
+  tone_compliance: 4.0
