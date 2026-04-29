@@ -374,3 +374,32 @@ def test_generator_prompt_contains_travel_multi_turn_constraint(tmp_path: Path) 
     assert "multi_turn" in prompt
     assert "conversation_turns" in prompt
     assert "НЕ используй type=single_turn" in prompt
+
+
+def test_generator_prompt_includes_few_shot_when_basket_not_empty(
+    tmp_path: Path,
+) -> None:
+    """Если корзина уже не пуста — в prompt вшивается ≥1 few-shot пример."""
+    basket = tmp_path / "basket"
+    _make_basket_with_scenario(basket, "SCN-FIN-001")
+    _make_basket_with_scenario(basket, "SCN-FIN-002")
+    prompt = evolution._build_generator_prompt(
+        system="finance_agent",
+        target_count=1,
+        categories=["functional"],
+        basket_dir=basket,
+    )
+    assert "ПРИМЕРЫ УЖЕ ВАЛИДНЫХ СЦЕНАРИЕЙ" in prompt
+    assert "SCN-FIN-001" in prompt
+    assert "SCN-FIN-002" in prompt
+
+
+def test_generator_prompt_no_few_shot_for_empty_basket(tmp_path: Path) -> None:
+    """Пустая корзина — не вшиваем few-shot, чтобы не падать на пустоте."""
+    prompt = evolution._build_generator_prompt(
+        system="finance_agent",
+        target_count=1,
+        categories=["functional"],
+        basket_dir=tmp_path / "empty",
+    )
+    assert "ПРИМЕРЫ УЖЕ ВАЛИДНЫХ" not in prompt

@@ -202,6 +202,7 @@ def _build_generator_prompt(
 ) -> str:
     context = _build_system_context(system)
     existing = _existing_scenario_summary(basket_dir)
+    few_shot = _load_few_shot_examples(basket_dir)
     type_rule = _SYSTEM_TYPE_CONSTRAINT.get(system, "")
     is_multi_turn = system == "travel_agent"
     example_type = "multi_turn" if is_multi_turn else "single_turn"
@@ -284,7 +285,32 @@ def _build_generator_prompt(
         'input.conversation_turns: [{"role": "user", "content": "..."}, ...]\n\n'
         "Верни СТРОГО JSON-объект ровно по этому шаблону:\n"
         f"{skeleton}\n\n"
+        f"{few_shot}\n"
         "ID не указывай — стенд проставит сам. Никакого текста вне JSON."
+    )
+
+
+def _load_few_shot_examples(basket_dir: Path) -> str:
+    """Берёт до 2 уже валидных YAML из корзины как few-shot.
+
+    Если корзина пустая — возвращает пустую строку. Сценарии передаются
+    как сырой YAML-текст (LLM хорошо его понимает) с пометкой «как пример,
+    не копируй дословно».
+    """
+    if not basket_dir.exists():
+        return ""
+    paths = sorted(basket_dir.glob("SCN-*-*.yaml"))[:2]
+    if not paths:
+        return ""
+    blocks: list[str] = []
+    for path in paths:
+        text = path.read_text(encoding="utf-8").strip()
+        blocks.append(f"--- {path.name} ---\n{text}")
+    joined = "\n\n".join(blocks)
+    return (
+        "ПРИМЕРЫ УЖЕ ВАЛИДНЫХ СЦЕНАРИЕЙ из этой корзины (для структуры, "
+        "НЕ копируй дословно — придумывай новые ситуации):\n\n"
+        f"{joined}\n"
     )
 
 
