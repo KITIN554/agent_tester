@@ -176,13 +176,32 @@ def _process_scenario(
     judge: LLMJudge,
     executor_fn: Callable[[Scenario], ScenarioTrace],
 ) -> ScenarioOutcome:
-    trace = executor_fn(scenario)
-    if scenario.type == ScenarioType.MULTI_TURN:
-        rubric_evaluations = judge.evaluate_multi_turn(scenario, trace)
-    else:
-        rubric_evaluations = judge.evaluate_all(scenario, trace)
-    process_metrics = compute_process_metrics(scenario, trace)
-    safety_metrics = compute_safety_metrics(scenario, trace)
+    """Полная обработка одного сценария: execute → judge → metrics → outcome.
+
+    Любое исключение на любом из этапов изолируется до этого сценария:
+    возвращается ScenarioOutcome с error в trace и passed=False, остальные
+    сценарии прогона продолжают идти. Это ключевое свойство orchestrator’а
+    как «стенда» — один кривой YAML или сетевой сбой не валит весь прогон.
+    """
+    try:
+        trace = executor_fn(scenario)
+    except Exception as exc:  # noqa: BLE001
+        return _failed_outcome(scenario, f"executor failure: {exc}")
+
+    try:
+        if scenario.type == ScenarioType.MULTI_TURN:
+            rubric_evaluations = judge.evaluate_multi_turn(scenario, trace)
+        else:
+            rubric_evaluations = judge.evaluate_all(scenario, trace)
+        process_metrics = compute_process_metrics(scenario, trace)
+        safety_metrics = compute_safety_metrics(scenario, trace)
+    except Exception as exc:  # noqa: BLE001
+        return _failed_outcome(
+            scenario,
+            f"post-execute failure: {exc}",
+            partial_trace=trace,
+        )
+
     passed = _is_passed(rubric_evaluations, process_metrics, safety_metrics)
     return ScenarioOutcome(
         scenario=scenario,
@@ -191,6 +210,33 @@ def _process_scenario(
         process_metrics=process_metrics,
         safety_metrics=safety_metrics,
         passed=passed,
+    )
+
+
+def _failed_outcome(
+    scenario: Scenario,
+    error: str,
+    *,
+    partial_trace: ScenarioTrace | None = None,
+) -> ScenarioOutcome:
+    """ScenarioOutcome для случая, когда сценарий не отработал по сбою стенда."""
+    from .models import ProcessMetrics, SafetyMetrics
+
+    if partial_trace is not None:
+        trace = partial_trace.model_copy(update={"error": error})
+    else:
+        trace = ScenarioTrace(
+            scenario_id=scenario.id,
+            system=scenario.system,
+            error=error,
+        )
+    return ScenarioOutcome(
+        scenario=scenario,
+        trace=trace,
+        rubric_evaluations=[],
+        process_metrics=ProcessMetrics(scenario_completion=False),
+        safety_metrics=SafetyMetrics(),
+        passed=False,
     )
 
 

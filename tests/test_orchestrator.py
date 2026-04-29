@@ -220,3 +220,39 @@ def test_run_basket_uses_baseline_for_gate_comparison(
     )
     # Baseline RQS=1.0, current тоже 1.0 → ALLOW (никаких регрессий)
     assert report.gate_decision is GateDecision.ALLOW
+
+
+def test_run_basket_isolates_per_scenario_failure(
+    tmp_path: Path, sample_scenario: dict[str, Any], mock_proxy_client: Any
+) -> None:
+    """Один сценарий, валящий executor, не должен ронять весь прогон.
+    Регрессия: спецификационное поведение из E2E (T015)."""
+    basket = _write_basket(tmp_path / "basket", sample_scenario, count=3)
+    # Судья: 4 рубрики * 2 успешных сценария = 8 ответов; для упавшего
+    # сценария судья не вызывается, поэтому ровно 8.
+    judge = _build_judge_with_mocked_passes(mock_proxy_client, n_calls=8)
+
+    crash_target = "SCN-FIN-002"
+
+    def flaky_executor(scenario: Scenario) -> ScenarioTrace:
+        if scenario.id == crash_target:
+            raise ValueError("simulated executor failure")
+        return _fake_executor(scenario)
+
+    report = run_basket(
+        basket_dir=basket,
+        output_dir=tmp_path / "out",
+        executor_fn=flaky_executor,
+        judge=judge,
+    )
+
+    assert report.total_scenarios == 3
+    by_id = {o.scenario.id: o for o in report.outcomes}
+    assert by_id[crash_target].passed is False
+    assert by_id[crash_target].trace.error
+    assert "simulated executor failure" in by_id[crash_target].trace.error
+    # Остальные два сценария отработали как обычно
+    assert by_id["SCN-FIN-001"].passed is True
+    assert by_id["SCN-FIN-003"].passed is True
+    assert report.passed_count == 2
+    assert report.failed_count == 1

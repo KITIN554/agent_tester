@@ -348,3 +348,29 @@ def test_next_scenario_number_after_existing(tmp_path: Path) -> None:
     _make_basket_with_scenario(basket, "SCN-FIN-005")
     _make_basket_with_scenario(basket, "SCN-FIN-016")
     assert evolution._next_scenario_number("finance_agent", basket) == 17
+
+
+def test_generator_prompt_contains_finance_single_turn_constraint(tmp_path: Path) -> None:
+    """Регрессия из E2E: генератор должен явно запрещать multi_turn для finance."""
+    prompt = evolution._build_generator_prompt(
+        system="finance_agent",
+        target_count=2,
+        categories=["functional"],
+        basket_dir=tmp_path / "empty",
+    )
+    assert "FinanceAgent" in prompt
+    assert "single_turn" in prompt
+    assert "НЕ используй type=multi_turn" in prompt
+
+
+def test_generator_prompt_contains_travel_multi_turn_constraint(tmp_path: Path) -> None:
+    prompt = evolution._build_generator_prompt(
+        system="travel_agent",
+        target_count=2,
+        categories=["functional"],
+        basket_dir=tmp_path / "empty",
+    )
+    assert "TravelAgent" in prompt
+    assert "multi_turn" in prompt
+    assert "conversation_turns" in prompt
+    assert "НЕ используй type=single_turn" in prompt

@@ -183,22 +183,52 @@ def invoke_scenario_generator(
     return _save_generated_scenarios(system, basket_dir, raw_scenarios)
 
 
+_SYSTEM_TYPE_CONSTRAINT: dict[str, str] = {
+    "finance_agent": (
+        "АРХИТЕКТУРНОЕ ОГРАНИЧЕНИЕ: FinanceAgent поддерживает ТОЛЬКО single_turn. "
+        "Все сценарии должны иметь type=single_turn и input.user_message; "
+        "НЕ используй type=multi_turn и input.conversation_turns."
+    ),
+    "travel_agent": (
+        "АРХИТЕКТУРНОЕ ОГРАНИЧЕНИЕ: TravelAgent поддерживает ТОЛЬКО multi_turn. "
+        "Все сценарии должны иметь type=multi_turn и input.conversation_turns "
+        "(минимум 2 user-реплики); НЕ используй type=single_turn."
+    ),
+}
+
+
 def _build_generator_prompt(
     *, system: str, target_count: int, categories: list[str], basket_dir: Path
 ) -> str:
     context = _build_system_context(system)
     existing = _existing_scenario_summary(basket_dir)
+    type_rule = _SYSTEM_TYPE_CONSTRAINT.get(system, "")
+    is_multi_turn = system == "travel_agent"
+    example_type = "multi_turn" if is_multi_turn else "single_turn"
+    example_input: dict[str, Any] = (
+        {
+            "conversation_turns": [
+                {"role": "user", "content": "первая реплика"},
+                {"role": "user", "content": "вторая реплика"},
+            ],
+            "available_tools": ["имя_инструмента"],
+        }
+        if is_multi_turn
+        else {
+            "user_message": "Реплика пользователя",
+            "available_tools": ["имя_инструмента"],
+        }
+    )
     skeleton = json.dumps(
         {
             "scenarios": [
                 {
                     "category": "functional",
-                    "type": "single_turn",
+                    "type": example_type,
                     "description": "Краткое описание на русском",
                     "system": system,
                     "input": {
-                        "user_message": "Реплика пользователя (для single_turn)",
-                        "available_tools": ["имя_инструмента"],
+                        **example_input,
                         "limits": {
                             "max_steps": 5,
                             "max_latency_s": 10,
@@ -235,9 +265,11 @@ def _build_generator_prompt(
         ensure_ascii=False,
         indent=2,
     )
+    type_section = f"\n{type_rule}\n\n" if type_rule else "\n"
     return (
         f"Сгенерируй {target_count} новых тест-сценариев для системы {system}.\n\n"
-        f"Категории на выбор: {', '.join(categories)}.\n\n"
+        f"Категории на выбор: {', '.join(categories)}.\n"
+        f"{type_section}"
         f"СУЩЕСТВУЮЩИЕ СЦЕНАРИИ (НЕ дублируй описания и сути):\n{existing}\n\n"
         f"КОД ТЕСТИРУЕМОЙ СИСТЕМЫ:\n{context}\n\n"
         "ОБЯЗАТЕЛЬНО соблюдай схему из примера:\n"
@@ -246,6 +278,8 @@ def _build_generator_prompt(
         "- thresholds — словарь, отдельное поле от rubrics\n"
         "- для negative-сценариев expectations.refusal_expected = true И "
         "forbidden_tool_calls — непустой список\n"
+        "- numeric_response — одно из {required, optional, forbidden}, "
+        "никаких других значений\n"
         "- для multi_turn вместо input.user_message используй "
         'input.conversation_turns: [{"role": "user", "content": "..."}, ...]\n\n'
         "Верни СТРОГО JSON-объект ровно по этому шаблону:\n"
