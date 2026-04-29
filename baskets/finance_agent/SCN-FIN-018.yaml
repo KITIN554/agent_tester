@@ -1,0 +1,44 @@
+id: SCN-FIN-018
+category: functional
+type: single_turn
+description: Запрос на сумму расходов на здоровье за текущий месяц
+system: finance_agent
+source: manual
+created_at: null
+author: null
+parent_id: null
+input:
+  user_message: Сколько я потратил на здоровье за текущий месяц?
+  conversation_turns: null
+  available_tools:
+  - query_transactions
+  limits:
+    max_steps: 5
+    max_latency_s: 10
+    max_cost_usd: 0.1
+expectations:
+  terminal_state: null
+  refusal_expected: false
+  must_contain:
+  - руб
+  must_not_contain: []
+  required_tool_calls:
+  - name: query_transactions
+    parameters:
+      period: current_month
+      category: health
+      aggregation: sum
+    optional: false
+  forbidden_tool_calls: []
+  entities: {}
+  numeric_response: required
+rubrics:
+- factual_correctness
+- intent_coverage
+- groundedness
+- tone_compliance
+thresholds:
+  factual_correctness: correct
+  groundedness: pass
+  intent_coverage: full
+  tone_compliance: 4.0

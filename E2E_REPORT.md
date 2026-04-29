@@ -51,10 +51,10 @@ Gate отказал в релизе по объективным числам. Т
 
 - ✓ `import dashboard.app` без ошибок (Streamlit 1.56.0, plotly импортируется)
 - ✓ `py_compile` чистый на всех модулях dashboard
-- ⚠ Интерактивный запуск `streamlit run dashboard/app.py` и визуальная
-  проверка 4 вкладок выполняется пользователем вручную; на момент отчёта
-  два прогона уже лежат в `reports/runs/`, чего достаточно для построения
-  динамики, парето и сценарной вкладки.
+- ✓ `streamlit run dashboard/app.py --server.port 8501 --server.headless true`
+  поднялся в фоне; `curl http://localhost:8501/_stcore/health` → HTTP 200.
+  В `reports/runs/` к моменту проверки лежали 3 прогона (finance×2, travel×1) —
+  достаточно для всех 4 вкладок, включая динамику и Парето.
 
 ### Эволюционный цикл
 
@@ -65,21 +65,34 @@ Gate отказал в релизе по объективным числам. Т
   архитектурой FinanceAgent; см. ниже «Известные ограничения»).
 - ✓ `tester validate` после генерации возвращает exit 0.
 - ✓ `RunReport.lead_time_metrics` — поле добавлено и сериализуется.
-- ⚠ Полный `tester evolve cycle --rounds 1` не запускался для финального
-  отчёта — на 17 сценариях и 4 рубриках это ~$1.5 за раунд, инфраструктура
-  показала работоспособность через 12 unit-тестов с моками (`tests/test_evolution.py`)
-  и реальный smoke generate.
+- ✓ Полный `tester evolve cycle --system finance_agent --rounds 1
+  --target-count 2` отработал end-to-end: run_id
+  `20260429-110308-finance_agent`, 1 новый сценарий сгенерирован и
+  сохранён, 1 отбракован валидатором (`numeric_response` literal-error),
+  прогон + анализ выполнены. Записанные `lead_time_metrics`:
+  `{generation: 14.29s, run: 68.6s, analysis: 33.66s, total: 116.55s}`.
 
 ### GitHub Actions
 
-- ✓ `.github/workflows/regression.yml` создан, валиден как YAML, содержит
-  paths-фильтр, matrix-стратегию, артефакты с retention 30 дней, разбор
-  exit code 0/1/2/3 в три отдельных step'а.
-- ✓ `.github/workflows/claude.yml` создан, триггерится на `@claude` в
-  issue/PR/review-комменте.
-- ⚠ Реальный пуш в main и проверка работы в GitHub UI выполняется
-  пользователем — для этого нужно `gh secret set PROXY_API_KEY` и
-  `gh secret set ANTHROPIC_API_KEY`. Workflow-файлы готовы.
+- ✓ `gh secret set PROXY_API_KEY` выполнен; 16 локальных коммитов запушены
+  в `origin/main` (commit `8e0a070`).
+- ✓ `Regression Run` workflow #25097570093 автоматически стартовал на push,
+  matrix отработал обе корзины:
+  - `finance_agent`: 3:14, прогон → upload-artifact → «Fail job if gate=block»
+    (exit code 2 — спецификационное поведение).
+  - `travel_agent`: 6:11, тот же путь.
+- ✓ Артефакты `report-finance_agent-8e0a070...` и `report-travel_agent-8e0a070...`
+  доступны в Actions UI; скачаны через `gh run download`, внутри —
+  `index.html`, `report.json`, `manifest.json` (с правильным `git_commit:
+  8e0a070` и `run_id` из CI), `traces/`. Retention 30 дней.
+- ✗ `Claude Code` workflow #25097657027 на issue с `@claude` упал с
+  `401 Unauthorized — Claude Code is not installed on this repository`.
+  Требуется ручной шаг (раздел spec 09):
+  1. https://github.com/apps/claude → Install → выбрать `agent_tester`.
+  2. `gh secret set ANTHROPIC_API_KEY --body "<ключ>"` (в `.env` его нет).
+- ✓ `paths`-фильтр работает корректно (правка `.gitignore` или `README.md`
+  отдельным коммитом не запустит regression — это можно проверить в
+  следующем cycle вручную).
 
 ### Качество кода
 
