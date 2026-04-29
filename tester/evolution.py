@@ -22,7 +22,6 @@ from typing import Any
 import yaml
 from rich.console import Console
 
-from .gate import load_baseline as load_baseline_report
 from .models import RunReport, Scenario
 
 _console = Console(stderr=True)
@@ -487,11 +486,32 @@ def _resolve_report_path(
             return {"error": f"Прогон {run_id} не найден"}
         return path
     if basket:
-        report = load_baseline_report(reports_dir, basket)
-        if report is None:
-            return {"error": f"Нет non-block прогонов для {basket}"}
-        return reports_dir / report.run_id / "report.json"
+        # Берём последний прогон корзины ЛЮБОГО гейта: block-прогоны
+        # содержат самую ценную диагностику, отбрасывать их нельзя.
+        latest = _latest_run_path(reports_dir, basket)
+        if latest is None:
+            return {"error": f"Нет прогонов для корзины {basket}"}
+        return latest
     return {"error": "Укажи run_id или basket"}
+
+
+def _latest_run_path(reports_dir: Path, basket: str) -> Path | None:
+    """Возвращает report.json самого свежего прогона корзины (без фильтра по gate).
+
+    run_id содержит таймстамп в начале имени, поэтому простая лексикографическая
+    сортировка убывания даёт правильный «новые сверху». Мусорные / нечитаемые
+    отчёты пропускаются.
+    """
+    if not reports_dir.exists():
+        return None
+    for run_path in sorted(reports_dir.glob("*/report.json"), reverse=True):
+        try:
+            report = RunReport.model_validate_json(run_path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            continue
+        if report.basket == basket:
+            return run_path
+    return None
 
 
 # ---------------------------------------------------------------------------

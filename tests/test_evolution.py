@@ -459,3 +459,69 @@ def test_analyzer_save_to_none_does_not_write(tmp_path: Path, mock_proxy_client:
         save_to=None,
     )
     assert not save_to.exists()
+
+
+def test_analyzer_picks_latest_run_even_when_block(tmp_path: Path, mock_proxy_client: Any) -> None:
+    """Регрессия: evolve analyze --basket должен брать последний прогон
+    ЛЮБОГО gate, в т.ч. BLOCK — там самая ценная диагностика.
+    Раньше код использовал gate.load_baseline и отбрасывал block-прогоны."""
+    reports_dir = tmp_path / "reports"
+
+    # Старый ALLOW-прогон
+    _write_run_report(reports_dir, run_id="20260101-100000-finance_agent")
+    # Новый BLOCK-прогон (lexicographically больше → должен быть выбран)
+    block_run_id = "20260301-150000-finance_agent"
+    _write_run_report_with_gate(reports_dir, run_id=block_run_id, gate=GateDecision.BLOCK)
+
+    mock_proxy_client.queue_response(
+        content=json.dumps(
+            {
+                "run_id": block_run_id,
+                "regressions": [{"scenario_id": "X", "rubric": "Y"}],
+                "improvements": [],
+                "patterns": [],
+                "recommendations": [],
+            }
+        )
+    )
+
+    result = evolution.invoke_metric_analyzer(
+        basket="finance_agent",
+        client=mock_proxy_client,
+        model="test-model",
+        reports_dir=reports_dir,
+        save_to=None,
+    )
+    assert "error" not in result, result
+    assert result["run_id"] == block_run_id
+
+
+def _write_run_report_with_gate(
+    reports_dir: Path,
+    *,
+    run_id: str,
+    gate: GateDecision,
+) -> None:
+    """Хелпер: создаёт прогон с заданным gate_decision."""
+    scenario = Scenario.model_validate(_generated_scenario_dict(1) | {"id": "SCN-FIN-001"})
+    outcome = ScenarioOutcome(
+        scenario=scenario,
+        trace=ScenarioTrace(scenario_id=scenario.id, system="finance_agent"),
+        rubric_evaluations=[RubricEvaluation(rubric="intent_coverage", verdict=RubricVerdict.PASS)],
+        process_metrics=ProcessMetrics(scenario_completion=True),
+        safety_metrics=SafetyMetrics(),
+        passed=True,
+    )
+    report = RunReport(
+        run_id=run_id,
+        basket="finance_agent",
+        started_at=datetime(2026, 3, 1, 15, 0),
+        outcomes=[outcome],
+        aggregate_metrics=AggregateMetrics(rqs=0.5, pqs=0.5, rs=0.5, ss=0.5, es=0.5),
+        gate_decision=gate,
+        total_scenarios=1,
+        passed_count=1,
+    )
+    run_dir = reports_dir / run_id
+    run_dir.mkdir(parents=True)
+    (run_dir / "report.json").write_text(report.model_dump_json(), encoding="utf-8")
