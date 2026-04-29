@@ -5,10 +5,20 @@
 
 from __future__ import annotations
 
-import streamlit as st
+import sys
+from pathlib import Path
 
-from dashboard.data_loader import list_baskets, list_runs, load_report
-from dashboard.views import pareto, scenario, summary, trends
+# Streamlit запускает этот файл как скрипт — sys.path[0] становится
+# `dashboard/`, а не корень проекта, поэтому `from dashboard.…` не резолвится.
+# Добавляем родительскую директорию (корень проекта) до импортов пакета.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+import streamlit as st  # noqa: E402
+
+from dashboard.data_loader import list_baskets, list_runs, load_report  # noqa: E402
+from dashboard.views import pareto, scenario, summary, trends  # noqa: E402
 
 
 def main() -> None:
