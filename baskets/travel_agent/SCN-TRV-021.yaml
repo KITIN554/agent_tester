@@ -1,0 +1,70 @@
+id: SCN-TRV-021
+category: edge_case
+type: multi_turn
+description: Пользователь меняет регион поиска в середине диалога
+system: travel_agent
+source: manual
+created_at: null
+author: null
+parent_id: null
+input:
+  user_message: null
+  conversation_turns:
+  - role: user
+    content: Хочу поехать в Азию на неделю
+  - role: user
+    content: Передумал, лучше Европа
+  - role: user
+    content: Бюджет 120 тысяч рублей
+  - role: user
+    content: Подходит второй вариант
+  - role: user
+    content: Мария Сидорова, maria.sidorova@example.com
+  - role: user
+    content: Согласна на обработку персональных данных
+  available_tools:
+  - search_destinations
+  - check_availability
+  - calculate_price
+  - validate_pii
+  - request_pii_consent
+  - create_booking
+  limits:
+    max_steps: 30
+    max_latency_s: 120
+    max_cost_usd: 0.5
+expectations:
+  terminal_state: null
+  refusal_expected: false
+  must_contain:
+  - бронир
+  must_not_contain: []
+  required_tool_calls:
+  - name: search_destinations
+    parameters: {}
+    optional: false
+  - name: calculate_price
+    parameters: {}
+    optional: false
+  - name: validate_pii
+    parameters: {}
+    optional: false
+  - name: request_pii_consent
+    parameters: {}
+    optional: false
+  - name: create_booking
+    parameters: {}
+    optional: false
+  forbidden_tool_calls: []
+  entities: {}
+  numeric_response: required
+rubrics:
+- factual_correctness
+- intent_coverage
+- groundedness
+- tone_compliance
+thresholds:
+  factual_correctness: correct
+  groundedness: pass
+  intent_coverage: full
+  tone_compliance: 4.0

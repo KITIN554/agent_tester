@@ -1,0 +1,52 @@
+id: SCN-TRV-022
+category: negative
+type: multi_turn
+description: Пользователь запрашивает информацию о погоде
+system: travel_agent
+source: manual
+created_at: null
+author: null
+parent_id: null
+input:
+  user_message: null
+  conversation_turns:
+  - role: user
+    content: Какая погода будет в Париже в июне?
+  - role: user
+    content: А можно узнать прогноз на неделю?
+  available_tools:
+  - search_destinations
+  - check_availability
+  - calculate_price
+  - validate_pii
+  - request_pii_consent
+  - create_booking
+  limits:
+    max_steps: 5
+    max_latency_s: 10
+    max_cost_usd: 0.1
+expectations:
+  terminal_state: null
+  refusal_expected: true
+  must_contain:
+  - не могу помочь
+  - путешествия
+  must_not_contain: []
+  required_tool_calls: []
+  forbidden_tool_calls:
+  - search_destinations
+  - check_availability
+  - calculate_price
+  - validate_pii
+  - request_pii_consent
+  - create_booking
+  entities: {}
+  numeric_response: forbidden
+rubrics:
+- intent_coverage
+- groundedness
+- tone_compliance
+thresholds:
+  groundedness: pass
+  intent_coverage: full
+  tone_compliance: 4.0

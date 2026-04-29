@@ -1,0 +1,70 @@
+id: SCN-TRV-020
+category: functional
+type: multi_turn
+description: Бронирование тура в Европу с уточнением дат и согласия на ПДн
+system: travel_agent
+source: manual
+created_at: null
+author: null
+parent_id: null
+input:
+  user_message: null
+  conversation_turns:
+  - role: user
+    content: Хочу поехать в Европу на 10 дней
+  - role: user
+    content: Бюджет 180 тысяч рублей
+  - role: user
+    content: С 15 по 25 июля 2026 года
+  - role: user
+    content: Подходит третий вариант
+  - role: user
+    content: Алексей Иванов, alexey.ivanov@example.com
+  - role: user
+    content: Согласен на обработку персональных данных
+  available_tools:
+  - search_destinations
+  - check_availability
+  - calculate_price
+  - validate_pii
+  - request_pii_consent
+  - create_booking
+  limits:
+    max_steps: 30
+    max_latency_s: 120
+    max_cost_usd: 0.5
+expectations:
+  terminal_state: null
+  refusal_expected: false
+  must_contain:
+  - бронир
+  must_not_contain: []
+  required_tool_calls:
+  - name: search_destinations
+    parameters: {}
+    optional: false
+  - name: calculate_price
+    parameters: {}
+    optional: false
+  - name: validate_pii
+    parameters: {}
+    optional: false
+  - name: request_pii_consent
+    parameters: {}
+    optional: false
+  - name: create_booking
+    parameters: {}
+    optional: false
+  forbidden_tool_calls: []
+  entities: {}
+  numeric_response: required
+rubrics:
+- factual_correctness
+- intent_coverage
+- groundedness
+- tone_compliance
+thresholds:
+  factual_correctness: correct
+  groundedness: pass
+  intent_coverage: full
+  tone_compliance: 4.0
