@@ -27,6 +27,7 @@ def _load_destinations() -> list[dict[str, Any]]:
 
 # =============== ИНСТРУМЕНТЫ ===============
 
+
 def search_destinations(
     region: str | None = None,
     max_budget_rub: int | None = None,
@@ -46,27 +47,35 @@ def search_destinations(
         candidates = [d for d in candidates if d["region"] == region]
 
     if not candidates:
-        return {"options": [], "total_count": 0, "filters_applied": {"region": region, "max_budget_rub": max_budget_rub}}
+        return {
+            "options": [],
+            "total_count": 0,
+            "filters_applied": {"region": region, "max_budget_rub": max_budget_rub},
+        }
 
-    nights = (duration_days or 7) - 1 if duration_days else 6
-    nights = max(nights, 1)
+    # nights = duration_days; check_availability/calculate_price считают
+    # nights = (end_date - start_date).days, поэтому при duration_days=7 и
+    # реальном диапазоне в 7 дней оценки сходятся.
+    nights = max(duration_days or 7, 1)
 
     enriched = []
     for d in candidates:
         hotel_total = d["hotel_price_per_night_rub"] * nights * guests
-        flight_total = d["flight_price_one_way_rub"] * 2 * guests   # туда-обратно
+        flight_total = d["flight_price_one_way_rub"] * 2 * guests  # туда-обратно
         total = hotel_total + flight_total
-        enriched.append({
-            "option_id": f"OPT_{d['city'].upper().replace(' ', '_')}",
-            "city": d["city"],
-            "country": d["country"],
-            "region": d["region"],
-            "hotel_price_per_night_rub": d["hotel_price_per_night_rub"],
-            "flight_price_one_way_rub": d["flight_price_one_way_rub"],
-            "nights": nights,
-            "guests": guests,
-            "total_price_rub": total,
-        })
+        enriched.append(
+            {
+                "option_id": f"OPT_{d['city'].upper().replace(' ', '_')}",
+                "city": d["city"],
+                "country": d["country"],
+                "region": d["region"],
+                "hotel_price_per_night_rub": d["hotel_price_per_night_rub"],
+                "flight_price_one_way_rub": d["flight_price_one_way_rub"],
+                "nights": nights,
+                "guests": guests,
+                "total_price_rub": total,
+            }
+        )
 
     if max_budget_rub is not None:
         enriched = [e for e in enriched if e["total_price_rub"] <= max_budget_rub]
@@ -93,7 +102,8 @@ def check_availability(option_id: str, start_date: str, end_date: str) -> dict[s
     # Извлекаем город из option_id
     city_token = option_id.replace("OPT_", "").replace("_", " ")
     matching = [
-        d for d in all_dest
+        d
+        for d in all_dest
         if d["city"].upper().replace(" ", " ") == city_token.upper()
         or d["city"].upper() == city_token.upper()
     ]
@@ -270,7 +280,7 @@ TOOLS_SCHEMA = [
                 "properties": {
                     "region": {
                         "type": "string",
-                        "enum": ["russia", "cis", "europe", "asia"],
+                        "enum": ["russia", "cis", "europe", "asia", "africa"],
                         "description": "Регион поиска. Опционально.",
                     },
                     "max_budget_rub": {
@@ -397,8 +407,14 @@ TOOLS_SCHEMA = [
                     "consent_request_id": {"type": "string"},
                 },
                 "required": [
-                    "option_id", "start_date", "end_date", "guests",
-                    "first_name", "last_name", "email", "consent_request_id",
+                    "option_id",
+                    "start_date",
+                    "end_date",
+                    "guests",
+                    "first_name",
+                    "last_name",
+                    "email",
+                    "consent_request_id",
                 ],
             },
         },

@@ -12,7 +12,7 @@ input:
     - role: user
       content: "Хочу поехать в Азию с 10 по 20 июня 2026 года"
     - role: user
-      content: "Бюджет 200 тысяч рублей"
+      content: "Бюджет 350 тысяч рублей"
     - role: user
       content: "Поедем вдвоём с супругой"
     - role: user

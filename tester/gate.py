@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .metrics import DEFAULT_THRESHOLDS
+from .metrics import DEFAULT_THRESHOLDS, STRICT_THRESHOLDS
 from .models import GateDecision, RubricVerdict, RunReport
 
 
@@ -25,6 +25,8 @@ def decide(
     report: RunReport,
     baseline_report: RunReport | None = None,
     regression_threshold: float = 0.05,
+    *,
+    strict: bool = False,
 ) -> GateResult:
     """Принимает решение по gate с обоснованием.
 
@@ -33,9 +35,13 @@ def decide(
         baseline_report: эталонный прогон (для условий 3 и 4); None при первом запуске
         regression_threshold: допустимое падение для некритичных метрик и сводных
             показателей (по умолчанию 5%)
+        strict: при True использовать STRICT_THRESHOLDS (production-grade goals
+            из таблицы 2.4 ВКР). По умолчанию False — DEFAULT_THRESHOLDS
+            (REALISTIC_THRESHOLDS, под untuned base-модели).
     """
+    thresholds = STRICT_THRESHOLDS if strict else DEFAULT_THRESHOLDS
     zero_violations = _check_zero_tolerance(report)
-    critical_violations = _check_critical_thresholds(report)
+    critical_violations = _check_critical_thresholds(report, thresholds)
     if zero_violations or critical_violations:
         return GateResult(
             decision=GateDecision.BLOCK,
@@ -72,13 +78,15 @@ def _check_zero_tolerance(report: RunReport) -> list[str]:
     return reasons
 
 
-def _check_critical_thresholds(report: RunReport) -> list[str]:
+def _check_critical_thresholds(
+    report: RunReport, thresholds: dict[str, dict[str, float | str]]
+) -> list[str]:
     """Условие 2: каждая critical-метрика укладывается в свой порог."""
     reasons: list[str] = []
 
     # Метрики результата по рубрикам (только critical)
     for rubric in ("factual_correctness", "intent_coverage", "groundedness"):
-        threshold = DEFAULT_THRESHOLDS[rubric]
+        threshold = thresholds[rubric]
         if threshold.get("strictness") != "critical":
             continue
         pass_rate = _rubric_pass_rate(report, rubric)
@@ -95,7 +103,7 @@ def _check_critical_thresholds(report: RunReport) -> list[str]:
         "tool_selection_accuracy",
         "parameter_extraction_accuracy",
     ):
-        threshold = DEFAULT_THRESHOLDS[metric]
+        threshold = thresholds[metric]
         avg = _process_metric_avg(report, metric)
         if avg is None:
             continue
@@ -109,14 +117,14 @@ def _check_critical_thresholds(report: RunReport) -> list[str]:
             sum(1 for o in report.outcomes if o.process_metrics.scenario_completion)
             / report.total_scenarios
         )
-        min_pass = float(DEFAULT_THRESHOLDS["scenario_completion"]["min_pass_rate"])
+        min_pass = float(thresholds["scenario_completion"]["min_pass_rate"])
         if completion_rate < min_pass:
             reasons.append(f"scenario_completion: {completion_rate:.3f} ниже порога {min_pass}")
 
     # refusal_accuracy (только если есть relevant — negative-сценарии)
     refusal_rate = _refusal_accuracy(report)
     if refusal_rate is not None:
-        min_pass = float(DEFAULT_THRESHOLDS["refusal_accuracy"]["min_pass_rate"])
+        min_pass = float(thresholds["refusal_accuracy"]["min_pass_rate"])
         if refusal_rate < min_pass:
             reasons.append(f"refusal_accuracy: {refusal_rate:.3f} ниже порога {min_pass}")
 

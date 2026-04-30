@@ -12,14 +12,14 @@ input:
   user_message: null
   conversation_turns:
   - role: user
-    content: Хотим покататься на лыжах всей семьёй в феврале. Подскажи варианты в
-      России.
+    content: Хотим покататься на лыжах всей семьёй в феврале 2027 года. Подскажи
+      варианты в России.
   - role: user
     content: 'Нас будет четверо: двое взрослых и двое детей 10 и 12 лет. Бюджет до
       250 тысяч.'
   - role: user
     content: Нам подходит вариант с горнолыжным курортом в Сочи, но нужно проверить
-      наличие на 15-25 февраля 2026 года.
+      наличие на 15-25 февраля 2027 года.
   - role: user
     content: Да, эти даты устраивают. Оформляем этот вариант.
   - role: user
@@ -57,8 +57,8 @@ expectations:
     optional: false
   - name: check_availability
     parameters:
-      start_date: '2026-02-15'
-      end_date: '2026-02-25'
+      start_date: '2027-02-15'
+      end_date: '2027-02-25'
     optional: false
   - name: calculate_price
     parameters:

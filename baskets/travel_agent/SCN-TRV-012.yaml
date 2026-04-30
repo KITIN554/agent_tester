@@ -12,7 +12,7 @@ input:
     - role: user
       content: "Хочу в Европу на неделю"
     - role: user
-      content: "Бюджет 150 тысяч, поеду один"
+      content: "Бюджет 250 тысяч, поеду один"
     - role: user
       content: "А, забыл. Со мной супруга поедет"
     - role: user

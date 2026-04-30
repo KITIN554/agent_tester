@@ -36,9 +36,8 @@ class FinanceAgent:
     ) -> None:
         self.client = OpenAI(
             api_key=api_key or os.environ["PROXY_API_KEY"],
-            base_url=base_url or os.environ.get(
-                "PROXY_BASE_URL", "https://api.proxyapi.ru/deepseek"
-            ),
+            base_url=base_url
+            or os.environ.get("PROXY_BASE_URL", "https://api.proxyapi.ru/deepseek"),
         )
         self.model = model or os.environ.get("LLM_MODEL", "deepseek-chat")
         self.max_iterations = max_iterations
@@ -63,12 +62,14 @@ class FinanceAgent:
         step_id = 0
 
         # Шаг: сообщение пользователя
-        trace.append(TraceStep(
-            step_id=step_id,
-            step_type=StepType.USER_MESSAGE,
-            timestamp=datetime.now(),
-            content={"message": user_message},
-        ))
+        trace.append(
+            TraceStep(
+                step_id=step_id,
+                step_type=StepType.USER_MESSAGE,
+                timestamp=datetime.now(),
+                content={"message": user_message},
+            )
+        )
         step_id += 1
 
         messages: list[dict[str, Any]] = [
@@ -80,7 +81,7 @@ class FinanceAgent:
         tokens_out = 0
 
         try:
-            for iteration in range(self.max_iterations):
+            for _iteration in range(self.max_iterations):
                 response = self._call_llm(messages)
                 msg = response.choices[0].message
 
@@ -90,21 +91,23 @@ class FinanceAgent:
                 # Если модель решила вызвать инструмент
                 if msg.tool_calls:
                     # Записываем в messages вызов модели
-                    messages.append({
-                        "role": "assistant",
-                        "content": msg.content,
-                        "tool_calls": [
-                            {
-                                "id": tc.id,
-                                "type": "function",
-                                "function": {
-                                    "name": tc.function.name,
-                                    "arguments": tc.function.arguments,
-                                },
-                            }
-                            for tc in msg.tool_calls
-                        ],
-                    })
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "content": msg.content,
+                            "tool_calls": [
+                                {
+                                    "id": tc.id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": tc.function.name,
+                                        "arguments": tc.function.arguments,
+                                    },
+                                }
+                                for tc in msg.tool_calls
+                            ],
+                        }
+                    )
 
                     # Выполняем все вызовы инструментов
                     for tc in msg.tool_calls:
@@ -114,12 +117,14 @@ class FinanceAgent:
                         except json.JSONDecodeError as e:
                             tool_args = {"_parse_error": str(e)}
 
-                        trace.append(TraceStep(
-                            step_id=step_id,
-                            step_type=StepType.TOOL_CALL,
-                            timestamp=datetime.now(),
-                            content={"name": tool_name, "parameters": tool_args},
-                        ))
+                        trace.append(
+                            TraceStep(
+                                step_id=step_id,
+                                step_type=StepType.TOOL_CALL,
+                                timestamp=datetime.now(),
+                                content={"name": tool_name, "parameters": tool_args},
+                            )
+                        )
                         step_id += 1
 
                         # Выполняем инструмент
@@ -134,40 +139,45 @@ class FinanceAgent:
                             result = None
                             error = f"Неизвестный инструмент: {tool_name}"
 
-                        trace.append(TraceStep(
-                            step_id=step_id,
-                            step_type=StepType.TOOL_RESULT,
-                            timestamp=datetime.now(),
-                            content={"result": result, "error": error},
-                        ))
+                        trace.append(
+                            TraceStep(
+                                step_id=step_id,
+                                step_type=StepType.TOOL_RESULT,
+                                timestamp=datetime.now(),
+                                content={"result": result, "error": error},
+                            )
+                        )
                         step_id += 1
 
                         # Добавляем результат в messages
-                        messages.append({
-                            "role": "tool",
-                            "tool_call_id": tc.id,
-                            "content": json.dumps(
-                                {"result": result, "error": error},
-                                ensure_ascii=False,
-                            ),
-                        })
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tc.id,
+                                "content": json.dumps(
+                                    {"result": result, "error": error},
+                                    ensure_ascii=False,
+                                ),
+                            }
+                        )
 
                     # Продолжаем цикл — модель сформирует финальный ответ
                     continue
 
                 # Модель завершила без вызова инструмента — финальный ответ
                 final_answer = msg.content or ""
-                trace.append(TraceStep(
-                    step_id=step_id,
-                    step_type=StepType.FINAL_ANSWER,
-                    timestamp=datetime.now(),
-                    content={"answer": final_answer},
-                ))
+                trace.append(
+                    TraceStep(
+                        step_id=step_id,
+                        step_type=StepType.FINAL_ANSWER,
+                        timestamp=datetime.now(),
+                        content={"answer": final_answer},
+                    )
+                )
 
                 latency = time.time() - start_time
                 cost = (
-                    tokens_in * PRICE_INPUT_PER_1K / 1000
-                    + tokens_out * PRICE_OUTPUT_PER_1K / 1000
+                    tokens_in * PRICE_INPUT_PER_1K / 1000 + tokens_out * PRICE_OUTPUT_PER_1K / 1000
                 )
 
                 return AgentResponse(
@@ -181,12 +191,14 @@ class FinanceAgent:
 
             # Превысили max_iterations
             error_msg = f"Превышен лимит итераций ({self.max_iterations})"
-            trace.append(TraceStep(
-                step_id=step_id,
-                step_type=StepType.ERROR,
-                timestamp=datetime.now(),
-                content={"error": error_msg},
-            ))
+            trace.append(
+                TraceStep(
+                    step_id=step_id,
+                    step_type=StepType.ERROR,
+                    timestamp=datetime.now(),
+                    content={"error": error_msg},
+                )
+            )
 
             return AgentResponse(
                 answer="",
@@ -198,12 +210,14 @@ class FinanceAgent:
             )
 
         except Exception as e:
-            trace.append(TraceStep(
-                step_id=step_id,
-                step_type=StepType.ERROR,
-                timestamp=datetime.now(),
-                content={"error": str(e)},
-            ))
+            trace.append(
+                TraceStep(
+                    step_id=step_id,
+                    step_type=StepType.ERROR,
+                    timestamp=datetime.now(),
+                    content={"error": str(e)},
+                )
+            )
             return AgentResponse(
                 answer="",
                 trace=trace,

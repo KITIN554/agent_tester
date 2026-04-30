@@ -1,7 +1,7 @@
 """Инструменты Finance Agent."""
 
 import csv
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -84,10 +84,7 @@ def query_transactions(
     transactions = _load_transactions()
     start, end = _resolve_period(period, today)
 
-    filtered = [
-        t for t in transactions
-        if start <= date.fromisoformat(t["date"]) <= end
-    ]
+    filtered = [t for t in transactions if start <= date.fromisoformat(t["date"]) <= end]
 
     if category:
         filtered = [t for t in filtered if t["category"] == category]

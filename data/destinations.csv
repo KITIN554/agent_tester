@@ -6,7 +6,7 @@ city,country,region,hotel_price_per_night_rub,flight_price_one_way_rub,available
 Ереван,Армения,cis,3432,16916,True
 Тбилиси,Грузия,cis,4257,16049,True
 Алматы,Казахстан,cis,4153,14421,True
-Стамбул,Турция,europe,5827,21297,True
+Стамбул,Турция,turkey,5827,21297,True
 Прага,Чехия,europe,7733,33856,True
 Рим,Италия,europe,8351,44919,True
 Барселона,Испания,europe,9283,41838,True
@@ -18,10 +18,10 @@ city,country,region,hotel_price_per_night_rub,flight_price_one_way_rub,available
 Дубай,ОАЭ,asia,12488,34054,True
 Токио,Япония,asia,12780,71505,True
 Сеул,Южная Корея,asia,11489,71528,True
-Анталия,Турция,europe,6947,23317,True
-Мармарис,Турция,europe,6881,24672,True
-Шарм-эль-Шейх,Египет,asia,6121,32057,True
-Хургада,Египет,asia,5053,25380,True
+Анталия,Турция,turkey,6947,23317,True
+Мармарис,Турция,turkey,6881,24672,True
+Шарм-эль-Шейх,Египет,africa,6121,32057,True
+Хургада,Египет,africa,5053,25380,True
 Венеция,Италия,europe,11629,39572,True
 Вена,Австрия,europe,10016,38517,True
 Амстердам,Нидерланды,europe,11140,46565,True

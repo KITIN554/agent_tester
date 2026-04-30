@@ -12,11 +12,11 @@ input:
   user_message: null
   conversation_turns:
   - role: user
-    content: Хочу поехать в Прагу на неделю.
+    content: Хочу поехать в Прагу на неделю, поеду один.
   - role: user
-    content: С 31 февраля по 10 марта 2026 года.
+    content: С 31 февраля по 10 марта 2027 года.
   - role: user
-    content: Ой, извините, ошибся. Надо с 28 февраля по 10 марта 2026 года.
+    content: Ой, извините, ошибся. Надо с 28 февраля по 10 марта 2027 года.
   - role: user
     content: Да, этот вариант подходит. Бронируем.
   - role: user
@@ -52,8 +52,8 @@ expectations:
     optional: false
   - name: check_availability
     parameters:
-      start_date: '2026-02-28'
-      end_date: '2026-03-10'
+      start_date: '2027-02-28'
+      end_date: '2027-03-10'
     optional: false
   - name: create_booking
     parameters: {}

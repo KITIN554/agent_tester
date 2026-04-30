@@ -1,13 +1,13 @@
 """Типы данных для Travel Agent."""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel
 
 
-class StepType(str, Enum):
+class StepType(StrEnum):
     USER_MESSAGE = "user_message"
     PLAN = "plan"
     TOOL_CALL = "tool_call"

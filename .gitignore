@@ -25,6 +25,7 @@ keys.txt
 
 # Logs and reports (artifacts, не код)
 reports/runs/
+reports/analysis/
 reports/*.html
 *.log
 

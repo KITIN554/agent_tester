@@ -7,14 +7,14 @@
 import json
 import os
 import time
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from .prompts import SYSTEM_PROMPT
-from .state import DialogState, DialogStateData, TERMINAL_STATES
+from .prompts import build_system_prompt
+from .state import TERMINAL_STATES, DialogState, DialogStateData
 from .tools import TOOL_REGISTRY, TOOLS_SCHEMA
 from .types import AgentResponse, StepType, TraceStep
 
@@ -45,9 +45,8 @@ class TravelAgent:
     ) -> None:
         self.client = OpenAI(
             api_key=api_key or os.environ["PROXY_API_KEY"],
-            base_url=base_url or os.environ.get(
-                "PROXY_BASE_URL", "https://api.proxyapi.ru/openrouter/v1"
-            ),
+            base_url=base_url
+            or os.environ.get("PROXY_BASE_URL", "https://api.proxyapi.ru/openrouter/v1"),
         )
         self.model = model or os.environ.get("LLM_MODEL", "mistralai/mistral-medium-3.1")
         self.max_iterations_per_turn = max_iterations_per_turn
@@ -65,7 +64,7 @@ class TravelAgent:
     def start_session(self) -> None:
         """Сбрасывает состояние и инициализирует новую сессию."""
         self.dialog = DialogStateData()
-        self.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        self.messages = [{"role": "system", "content": build_system_prompt(date.today())}]
         self.trace = []
         self.step_id = 0
         self.tokens_in = 0
@@ -86,12 +85,14 @@ class TravelAgent:
         )
 
     def _add_trace(self, step_type: StepType, content: dict[str, Any]) -> None:
-        self.trace.append(TraceStep(
-            step_id=self.step_id,
-            step_type=step_type,
-            timestamp=datetime.now(),
-            content=content,
-        ))
+        self.trace.append(
+            TraceStep(
+                step_id=self.step_id,
+                step_type=step_type,
+                timestamp=datetime.now(),
+                content=content,
+            )
+        )
         self.step_id += 1
 
     def send(self, user_message: str) -> AgentResponse:
@@ -120,21 +121,23 @@ class TravelAgent:
 
                 if msg.tool_calls:
                     # Записываем вызов модели в историю сообщений
-                    self.messages.append({
-                        "role": "assistant",
-                        "content": msg.content,
-                        "tool_calls": [
-                            {
-                                "id": tc.id,
-                                "type": "function",
-                                "function": {
-                                    "name": tc.function.name,
-                                    "arguments": tc.function.arguments,
-                                },
-                            }
-                            for tc in msg.tool_calls
-                        ],
-                    })
+                    self.messages.append(
+                        {
+                            "role": "assistant",
+                            "content": msg.content,
+                            "tool_calls": [
+                                {
+                                    "id": tc.id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": tc.function.name,
+                                        "arguments": tc.function.arguments,
+                                    },
+                                }
+                                for tc in msg.tool_calls
+                            ],
+                        }
+                    )
 
                     for tc in msg.tool_calls:
                         tool_name = tc.function.name
@@ -168,14 +171,16 @@ class TravelAgent:
                         # Обновляем контекст диалога по факту вызовов
                         self._update_state_from_tool(tool_name, tool_args, result)
 
-                        self.messages.append({
-                            "role": "tool",
-                            "tool_call_id": tc.id,
-                            "content": json.dumps(
-                                {"result": result, "error": error},
-                                ensure_ascii=False,
-                            ),
-                        })
+                        self.messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": tc.id,
+                                "content": json.dumps(
+                                    {"result": result, "error": error},
+                                    ensure_ascii=False,
+                                ),
+                            }
+                        )
                     # Продолжаем — модель сформирует следующий шаг
                     continue
 
@@ -201,9 +206,7 @@ class TravelAgent:
             self.dialog.state = DialogState.ERROR
             return self._build_response("", error=str(e))
 
-    def _update_state_from_tool(
-        self, tool_name: str, args: dict, result: Any
-    ) -> None:
+    def _update_state_from_tool(self, tool_name: str, args: dict, result: Any) -> None:
         """Обновляет состояние диалога на основе вызова инструмента."""
         ctx = self.dialog.context
 

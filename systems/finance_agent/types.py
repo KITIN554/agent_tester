@@ -1,13 +1,13 @@
 """Типы данных для Finance Agent."""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
-class StepType(str, Enum):
+class StepType(StrEnum):
     """Тип шага в трассе агента."""
 
     USER_MESSAGE = "user_message"
